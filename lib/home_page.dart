@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
 import 'now_playing_page.dart';
 import 'data/mock_data.dart';
-import 'services/firestore_service.dart';
+// import 'services/firestore_service.dart';
 import 'services/audio_player_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -16,7 +16,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
-  final FirestoreService _firestoreService = FirestoreService();
+  // final FirestoreService _firestoreService = FirestoreService();
   final AudioPlayerService _audioService = AudioPlayerService();
   
   String get greeting {
@@ -319,48 +319,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRecentlyPlayedList() {
-    // Load songs from Firebase
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _firestoreService.getSongs(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20.0),
-              child: CircularProgressIndicator(color: Color(0xFF23DD5B)),
-            ),
-          );
-        }
+    // Load songs from MockData instead of Firebase
+    final songs = MockData.songs.map((song) => {
+      'id': song.id,
+      'songName': song.title,
+      'artistName': song.artist,
+      'albumName': song.album,
+      'coverUrl': song.coverUrl,
+      'audioUrl': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Dummy URL
+      'duration': song.duration,
+    }).toList();
 
-        if (snapshot.hasError) {
-          return Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Text(
-              'Lỗi: ${snapshot.error}',
-              style: const TextStyle(color: Colors.red),
-            ),
-          );
-        }
-
-        final songs = snapshot.data ?? [];
-        
-        if (songs.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Text(
-              'Chưa có bài hát. Vào Profile > Admin để seed data.',
-              style: TextStyle(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
-          );
-        }
-
-        return Column(
-          children: songs.take(6).map((song) {
-            return _buildSongItem(song, songs);
-          }).toList(),
-        );
-      },
+    return Column(
+      children: songs.take(6).map((song) {
+        return _buildSongItem(song, songs);
+      }).toList(),
     );
   }
 
@@ -388,19 +361,32 @@ class _HomePageState extends State<HomePage> {
             // Song cover
             ClipRRect(
               borderRadius: BorderRadius.circular(5),
-              child: song['coverUrl'] != null && song['coverUrl'].toString().startsWith('http')
-                  ? Image.network(
-                      song['coverUrl'],
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        width: 50,
-                        height: 50,
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.music_note, color: Colors.white),
-                      ),
-                    )
+              child: song['coverUrl'] != null
+                  ? (song['coverUrl'].toString().startsWith('http')
+                      ? Image.network(
+                          song['coverUrl'],
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 50,
+                            height: 50,
+                            color: Colors.grey[800],
+                            child: const Icon(Icons.music_note, color: Colors.white),
+                          ),
+                        )
+                      : Image.asset(
+                          song['coverUrl'],
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 50,
+                            height: 50,
+                            color: Colors.grey[800],
+                            child: const Icon(Icons.music_note, color: Colors.white),
+                          ),
+                        ))
                   : Container(
                       width: 50,
                       height: 50,
