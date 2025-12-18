@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
 import 'now_playing_page.dart';
-import 'data/mock_data.dart';
-// import 'services/firestore_service.dart';
+import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -16,8 +15,12 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
-  // final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioService = AudioPlayerService();
+  
+  List<Map<String, dynamic>> _songs = [];
+  bool _isLoading = true;
+  String? _error;
   
   String get greeting {
     final hour = DateTime.now().hour;
@@ -30,6 +33,33 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_scrollListener);
+    _loadSongs();
+  }
+
+  Future<void> _loadSongs() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+      
+      final songs = await _supabaseService.getSongs();
+      
+      if (mounted) {
+        setState(() {
+          _songs = songs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+          _songs = [];
+        });
+      }
+    }
   }
 
   @override
@@ -47,9 +77,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _resetPage() {
-    setState(() {
-      // Reset logic here - refresh the page
-    });
+    _loadSongs();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Trang đã được làm mới!'),
@@ -319,15 +347,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRecentlyPlayedList() {
-    // Load songs from MockData instead of Firebase
-    final songs = MockData.songs.map((song) => {
-      'id': song.id,
-      'songName': song.title,
-      'artistName': song.artist,
-      'albumName': song.album,
-      'coverUrl': song.coverUrl,
-      'audioUrl': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Dummy URL
-      'duration': song.duration,
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: CircularProgressIndicator(color: Color(0xFF23DD5B)),
+        ),
+      );
+    }
+
+    if (_songs.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(20.0),
+        child: Text(
+          'Chưa có bài hát. Vui lòng thêm dữ liệu vào Supabase.',
+          style: TextStyle(color: Colors.white70),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    // Map Supabase data to expected format
+    final songs = _songs.map((song) => {
+      'id': song['id'],
+      'songName': song['title'],
+      'artistName': song['artist_name'],
+      'albumName': song['album_name'],
+      'coverUrl': song['cover_url'],
+      'audioUrl': song['audio_url'],
+      'duration': song['duration'],
     }).toList();
 
     return Column(

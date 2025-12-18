@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
-import 'data/mock_data.dart';
-import 'models/song.dart';
-import 'models/playlist.dart';
+import 'services/supabase_service.dart';
+import 'services/audio_player_service.dart';
 import 'now_playing_page.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -15,10 +14,44 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
+  final SupabaseService _supabaseService = SupabaseService();
+  final AudioPlayerService _audioService = AudioPlayerService();
+  
   String _activeFilter = 'all'; // all, playlists, albums, liked
+  
+  List<Map<String, dynamic>> _playlists = [];
+  List<Map<String, dynamic>> _albums = [];
+  List<Map<String, dynamic>> _songs = [];
+  bool _isLoading = true;
 
-  List<Song> get likedSongs {
-    return MockData.songs.where((song) => song.isLiked).toList();
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final results = await Future.wait([
+        _supabaseService.getPublicPlaylists(),
+        _supabaseService.getAlbums(),
+        _supabaseService.getSongs(),
+      ]);
+      
+      if (mounted) {
+        setState(() {
+          _playlists = results[0];
+          _albums = results[1];
+          _songs = results[2];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -111,6 +144,12 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF23DD5B)),
+      );
+    }
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
@@ -185,7 +224,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${likedSongs.length} bài hát',
+                          '${_songs.length} bài hát',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -224,33 +263,49 @@ class _LibraryPageState extends State<LibraryPage> {
             ],
           ),
           const SizedBox(height: 16),
-          ...MockData.playlists.map((playlist) => _buildPlaylistItem(playlist)),
+          if (_playlists.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Chưa có playlist',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          else
+            ..._playlists.map((playlist) => _buildPlaylistItem(playlist)),
         ],
       ),
     );
   }
 
-  Widget _buildPlaylistItem(Playlist playlist) {
+  Widget _buildPlaylistItem(Map<String, dynamic> playlist) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: Image.asset(
-              playlist.coverUrl,
-              width: 64,
-              height: 64,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 64,
-                  height: 64,
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.music_note, color: Colors.white),
-                );
-              },
-            ),
+            child: playlist['cover_url'] != null
+                ? Image.network(
+                    playlist['cover_url'],
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 64,
+                        height: 64,
+                        color: Colors.grey[800],
+                        child: const Icon(Icons.music_note, color: Colors.white),
+                      );
+                    },
+                  )
+                : Container(
+                    width: 64,
+                    height: 64,
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.music_note, color: Colors.white),
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -258,7 +313,7 @@ class _LibraryPageState extends State<LibraryPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  playlist.name,
+                  playlist['name'] ?? 'Unknown',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -269,7 +324,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Playlist • ${playlist.songCount} bài hát',
+                  'Playlist',
                   style: TextStyle(
                     color: Colors.grey[400],
                     fontSize: 14,
@@ -294,7 +349,7 @@ class _LibraryPageState extends State<LibraryPage> {
               Icon(Icons.album, color: Colors.grey, size: 20),
               SizedBox(width: 8),
               Text(
-                'Album đã lưu',
+                'Album',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -304,56 +359,78 @@ class _LibraryPageState extends State<LibraryPage> {
             ],
           ),
           const SizedBox(height: 16),
-          ...MockData.albums.map((album) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.asset(
-                        album.coverUrl,
+          if (_albums.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Chưa có album',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          else
+            ..._albums.map((album) => _buildAlbumItem(album)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlbumItem(Map<String, dynamic> album) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: album['cover_url'] != null
+                ? Image.network(
+                    album['cover_url'],
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
                         width: 64,
                         height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: 64,
-                            height: 64,
-                            color: Colors.grey[800],
-                            child: const Icon(Icons.music_note, color: Colors.white),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            album.name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Album • ${album.artist}',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                        color: Colors.grey[800],
+                        child: const Icon(Icons.album, color: Colors.white),
+                      );
+                    },
+                  )
+                : Container(
+                    width: 64,
+                    height: 64,
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.album, color: Colors.white),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  album['name'] ?? 'Unknown',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              )),
+                const SizedBox(height: 4),
+                Text(
+                  'Album • ${album['artists']?['name'] ?? 'Unknown'}',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -361,12 +438,12 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _buildLikedSongsList() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Tất cả bài hát đã thích',
+            'Bài hát đã thích',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -374,74 +451,109 @@ class _LibraryPageState extends State<LibraryPage> {
             ),
           ),
           const SizedBox(height: 16),
-          ...likedSongs.map((song) => InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NowPlayingPage(),
-                    ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.asset(
-                          song.coverUrl,
+          if (_songs.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Chưa có bài hát',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          else
+            ..._songs.map((song) => _buildSongItem(song)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSongItem(Map<String, dynamic> song) {
+    return InkWell(
+      onTap: () async {
+        final playlist = _songs.map((s) => {
+          'id': s['id'],
+          'songName': s['title'],
+          'artistName': s['artist_name'],
+          'albumName': s['album_name'],
+          'coverUrl': s['cover_url'],
+          'audioUrl': s['audio_url'],
+          'duration': s['duration'],
+        }).toList();
+        
+        final index = _songs.indexOf(song);
+        await _audioService.setPlaylist(playlist, index);
+        
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const NowPlayingPage(),
+            ),
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: song['cover_url'] != null
+                  ? Image.network(
+                      song['cover_url'],
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
                           width: 56,
                           height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 56,
-                              height: 56,
-                              color: Colors.grey[800],
-                              child: const Icon(Icons.music_note, color: Colors.white),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              song.artist,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 14,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.favorite,
-                        color: const Color(0xFF23DD5B),
-                        size: 20,
-                      ),
-                    ],
+                          color: Colors.grey[800],
+                          child: const Icon(Icons.music_note, color: Colors.white),
+                        );
+                      },
+                    )
+                  : Container(
+                      width: 56,
+                      height: 56,
+                      color: Colors.grey[800],
+                      child: const Icon(Icons.music_note, color: Colors.white),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song['title'] ?? 'Unknown',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              )),
-        ],
+                  const SizedBox(height: 4),
+                  Text(
+                    song['artist_name'] ?? 'Unknown Artist',
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.favorite,
+              color: Color(0xFF23DD5B),
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }

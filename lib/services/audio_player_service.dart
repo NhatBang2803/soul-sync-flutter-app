@@ -28,20 +28,49 @@ class AudioPlayerService {
   /// Play a song from URL
   Future<void> playSong(Map<String, dynamic> song) async {
     try {
-      // Nếu có URL thật từ Firebase Storage
-      if (song['fileUrl'] != null && song['fileUrl'].toString().startsWith('http')) {
-        await _player.setUrl(song['fileUrl']);
+      // Dừng player trước khi load URL mới
+      await _player.stop();
+      
+      // Lấy URL từ audio_url hoặc audioUrl (camelCase) hoặc fileUrl (Firebase)
+      // Hỗ trợ cả snake_case và camelCase
+      final audioUrl = song['audio_url'] ?? song['audioUrl'] ?? song['fileUrl'];
+      
+      print('🔍 Looking for audio URL in song data...');
+      print('📋 Song keys: ${song.keys.toList()}');
+      print('🎵 Found audioUrl: $audioUrl');
+      
+      if (audioUrl != null && audioUrl.toString().startsWith('http')) {
+        print('🎵 Playing from URL: $audioUrl');
+        
+        // Set audio source với các options
+        await _player.setAudioSource(
+          AudioSource.uri(
+            Uri.parse(audioUrl),
+            headers: {
+              'User-Agent': 'MusicApp/1.0',
+            },
+          ),
+        );
         await _player.play();
+        print('✅ Audio started playing successfully');
       } else {
         // Demo: Phát một URL mẫu (cần thay bằng URL thật)
-        // Hoặc hiển thị thông báo
-        print('⚠️ Song URL not available: ${song['songName']}');
-        // Demo URL (thay bằng URL thật từ Firebase Storage)
+        print('⚠️ Song URL not available: ${song['title'] ?? song['songName']}');
+        print('📋 Full song data: $song');
+        // Demo URL (thay bằng URL thật)
         await _player.setUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
         await _player.play();
       }
     } catch (e) {
       print('❌ Error playing song: $e');
+      // Thử phát fallback URL nếu lỗi
+      try {
+        print('🔄 Trying fallback URL...');
+        await _player.setUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
+        await _player.play();
+      } catch (fallbackError) {
+        print('❌ Fallback also failed: $fallbackError');
+      }
     }
   }
 

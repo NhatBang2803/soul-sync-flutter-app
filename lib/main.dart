@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-// import 'package:firebase_core/firebase_core.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'config/app_config.dart';
 import 'home_page.dart';
 import 'search_page.dart';
 import 'library_page.dart';
@@ -9,21 +10,18 @@ import 'now_playing_page.dart';
 import 'admin_seed_page.dart';
 import 'components/mini_player.dart';
 import 'data/mock_data.dart';
-// import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
+  // Load environment variables
+  await dotenv.load(fileName: '.env');
   
-  // Enable offline persistence
-  // FirebaseFirestore.instance.settings = const Settings(
-  //   persistenceEnabled: true,
-  //   cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  // );
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: AppConfig.supabaseUrl,
+    anonKey: AppConfig.supabaseAnonKey,
+  );
   
   runApp(const MyApp());
 }

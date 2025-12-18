@@ -35,11 +35,14 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   
-  # Firebase dependencies removed
-  # firebase_core: ^3.8.1
-  # firebase_auth: ^5.3.3
-  # cloud_firestore: ^5.5.2
-  # firebase_storage: ^12.3.6
+  # Supabase (Database + Auth)
+  supabase_flutter: ^2.8.3
+  
+  # HTTP client for Cloudinary
+  dio: ^5.4.0
+  
+  # Environment config
+  flutter_dotenv: ^5.1.0
   
   # Audio player
   just_audio: ^0.9.36
@@ -74,6 +77,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

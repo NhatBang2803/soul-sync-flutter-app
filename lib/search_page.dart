@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
-import 'data/mock_data.dart';
-import 'models/song.dart';
+import 'services/supabase_service.dart';
+import 'services/audio_player_service.dart';
 import 'now_playing_page.dart';
 
 class SearchPage extends StatefulWidget {
@@ -15,14 +15,40 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
+  final SupabaseService _supabaseService = SupabaseService();
+  final AudioPlayerService _audioService = AudioPlayerService();
+  
   String _searchQuery = '';
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
 
-  List<Song> get filteredSongs {
-    if (_searchQuery.isEmpty) return [];
-    return MockData.songs.where((song) {
-      return song.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          song.artist.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
+  Future<void> _performSearch(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+    
+    setState(() => _isSearching = true);
+    
+    try {
+      final results = await _supabaseService.searchSongs(query);
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
+    }
   }
 
   @override
@@ -79,6 +105,7 @@ class _SearchPageState extends State<SearchPage> {
                   setState(() {
                     _searchQuery = value;
                   });
+                  _performSearch(value);
                 },
               ),
             ),
@@ -90,6 +117,7 @@ class _SearchPageState extends State<SearchPage> {
                 setState(() {
                   _searchController.clear();
                   _searchQuery = '';
+                  _searchResults = [];
                 });
               },
             ),
@@ -173,7 +201,13 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildSearchResults() {
-    if (filteredSongs.isEmpty) {
+    if (_isSearching) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF23DD5B)),
+      );
+    }
+    
+    if (_searchResults.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -207,17 +241,31 @@ class _SearchPageState extends State<SearchPage> {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: filteredSongs.length,
+      itemCount: _searchResults.length,
       itemBuilder: (context, index) {
-        final song = filteredSongs[index];
+        final song = _searchResults[index];
         return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const NowPlayingPage(),
-              ),
-            );
+          onTap: () async {
+            final playlist = _searchResults.map((s) => {
+              'id': s['id'],
+              'songName': s['title'],
+              'artistName': s['artist_name'],
+              'albumName': s['album_name'],
+              'coverUrl': s['cover_url'],
+              'audioUrl': s['audio_url'],
+              'duration': s['duration'],
+            }).toList();
+            
+            await _audioService.setPlaylist(playlist, index);
+            
+            if (mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NowPlayingPage(),
+                ),
+              );
+            }
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -225,20 +273,27 @@ class _SearchPageState extends State<SearchPage> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                    song.coverUrl,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 56,
-                        height: 56,
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.music_note, color: Colors.white),
-                      );
-                    },
-                  ),
+                  child: song['cover_url'] != null
+                      ? Image.network(
+                          song['cover_url'],
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 56,
+                              height: 56,
+                              color: Colors.grey[800],
+                              child: const Icon(Icons.music_note, color: Colors.white),
+                            );
+                          },
+                        )
+                      : Container(
+                          width: 56,
+                          height: 56,
+                          color: Colors.grey[800],
+                          child: const Icon(Icons.music_note, color: Colors.white),
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -246,7 +301,7 @@ class _SearchPageState extends State<SearchPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        song.title,
+                        song['title'] ?? 'Unknown',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -257,7 +312,7 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        song.artist,
+                        song['artist_name'] ?? 'Unknown Artist',
                         style: TextStyle(
                           color: Colors.grey[400],
                           fontSize: 14,
