@@ -1,0 +1,141 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/coverage/
+pubspec.lock
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Android specific
+/android/.gradle/
+/android/.kotlin/
+/android/local.properties
+/android/captures/
+/android/gradlew
+/android/gradlew.bat
+/android/**/GeneratedPluginRegistrant.java
+/android/.cxx/
+*.keystore
+*.jks
+key.properties
+
+# iOS/macOS specific
+**/Pods/
+**/Podfile.lock
+**/.symlinks/
+**/DerivedData/
+**/xcuserdata/
+**/Flutter/ephemeral/
+**/Flutter/Generated.xcconfig
+**/Flutter/flutter_export_environment.sh
+**/*.pbxuser
+**/*.perspectivev3
+**/*.mode1v3
+**/*.mode2v3
+*.moved-aside
+profile
+
+# Windows specific
+/windows/flutter/ephemeral/
+/windows/flutter/generated_plugins.cmake
+/windows/flutter/generated_plugin_registrant.h
+/windows/flutter/generated_plugin_registrant.cc
+
+# Linux specific
+/linux/flutter/ephemeral/
+/linux/flutter/generated_plugins.cmake
+/linux/flutter/generated_plugin_registrant.h
+/linux/flutter/generated_plugin_registrant.cc
+
+# Web specific
+/web/.dart_tool/
+
+# Firebase
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+.firebaserc
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Google Services (contains sensitive data)
+# Uncomment if you don't want to share Firebase config
+# /android/app/google-services.json
+# /ios/Runner/GoogleService-Info.plist
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.gr.dart
+*.mocks.dart
+
+# Test coverage
+coverage/
+lcov.info
+
+# FVM (Flutter Version Management)
+.fvm/
+.fvmrc
+
+# Node modules (for webReference folder)
+node_modules/
+webReference/node_modules/
+webReference/dist/
+webReference/.vite/
+
+# Metadata
+.metadata
+
+# Crash logs
+crash_log.txt
+*.crash
+
+# Local configuration
+*.local
+
+.vscode/
+*.json
