@@ -276,3 +276,16 @@ Response chứa `secure_url` → Dùng làm `audio_url` trong Supabase.
 - [ ] Upload test audio files
 - [ ] Copy credentials vào Flutter app
 - [ ] Test connection từ app
+
+Có bảng xếp hạng bài hát:
+- Theo số lượt nghe theo thể loại ballab, rap, pop,.. theo tuần
+- Bảng xếp nghệ sĩ/ca sĩ theo tổng lượt nghe trong tuần
+- Top những bài hát mới ra gần đây (1 tuần đổ lại)
+
+Người dùng tự tạo được playlist có thể chỉnh private, public, lưu được bài hát yêu thích
+Bài hát có thể có nhiều ca sĩ một list ca sĩ
+Tìm kiếm chỉ tìm tuyệt đối real time.
+Có thể phát ngẫu nhiên
+Có thể hẹn giờ tắt.
+Ấn vào nghệ sĩ/ca sĩ, có thể xem top 5 nhạc được nghe nhiều nhất, có nút xem được tất cả album,
+Đăng nhập với google oauth.

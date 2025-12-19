@@ -61,7 +61,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final song = _audioService.currentSong;
+    // Song data retrieved directly from _audioService.currentSong where needed
     
     return Scaffold(
       backgroundColor: Colors.black,

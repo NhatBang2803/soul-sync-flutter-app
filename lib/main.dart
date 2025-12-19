@@ -10,7 +10,6 @@ import 'library_page.dart';
 import 'profile_page.dart';
 import 'now_playing_page.dart';
 import 'admin_seed_page.dart';
-import 'components/mini_player.dart';
 import 'services/audio_player_service.dart';
 
 void main() async {

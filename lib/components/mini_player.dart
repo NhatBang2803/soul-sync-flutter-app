@@ -26,7 +26,7 @@ class MiniPlayer extends StatelessWidget {
           color: const Color(0xFF222222),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -38,8 +38,9 @@ class MiniPlayer extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
-                child: Image.asset(
-                  song.coverUrl,
+                child: song.coverUrl != null && song.coverUrl!.isNotEmpty
+                    ? Image.asset(
+                  song.coverUrl!,
                   width: 48,
                   height: 48,
                   fit: BoxFit.cover,
@@ -51,7 +52,13 @@ class MiniPlayer extends StatelessWidget {
                       child: const Icon(Icons.music_note, color: Colors.white, size: 24),
                     );
                   },
-                ),
+                )
+                    : Container(
+                      width: 48,
+                      height: 48,
+                      color: Colors.grey[800],
+                      child: const Icon(Icons.music_note, color: Colors.white, size: 24),
+                    ),
               ),
               const SizedBox(width: 12),
               Expanded(

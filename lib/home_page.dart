@@ -3,6 +3,8 @@ import 'components/bottom_nav_bar.dart';
 import 'now_playing_page.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
+import 'models/song.dart';
+import 'core/core.dart';
 
 class HomePage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -18,16 +20,10 @@ class _HomePageState extends State<HomePage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioService = AudioPlayerService();
   
-  List<Map<String, dynamic>> _songs = [];
+  List<Song> _songs = [];
   bool _isLoading = true;
   String? _error;
-  
-  String get greeting {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Chào buổi sáng';
-    if (hour < 18) return 'Chào buổi chiều';
-    return 'Chào buổi tối';
-  }
+  int _selectedFilterIndex = 0;
 
   @override
   void initState() {
@@ -43,11 +39,11 @@ class _HomePageState extends State<HomePage> {
         _error = null;
       });
       
-      final songs = await _supabaseService.getSongs();
+      final songsData = await _supabaseService.getSongs();
       
       if (mounted) {
         setState(() {
-          _songs = songs;
+          _songs = songsData.map((json) => Song.fromJson(json)).toList();
           _isLoading = false;
         });
       }
@@ -80,27 +76,36 @@ class _HomePageState extends State<HomePage> {
     _loadSongs();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Trang đã được làm mới!'),
+        content: Text(AppStrings.refresh),
         duration: Duration(milliseconds: 800),
-        backgroundColor: Color(0xFF23DD5B),
+        backgroundColor: AppColors.primary,
       ),
     );
+  }
+
+  void _onSongTap(Song song, int index) async {
+    final playlist = _songs.map((s) => s.toPlayerFormat()).toList();
+    await _audioService.setPlaylist(playlist, index);
+    
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const NowPlayingPage(),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            // Status Bar and Header
             _buildHeader(),
-            
-            // Tab Filters
             _buildTabFilters(),
-            
-            // Scrollable Content
             Expanded(
               child: SingleChildScrollView(
                 controller: _scrollController,
@@ -108,19 +113,12 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Quick Access Grid
                     _buildQuickAccessGrid(),
-                    
                     const SizedBox(height: 20),
-                    
-                    // Recently Played Section
-                    _buildSectionTitle('Nội dung bạn nghe gần đây'),
+                    const SectionHeader(title: 'Nội dung bạn nghe gần đây'),
                     _buildRecentlyPlayedList(),
-                    
                     const SizedBox(height: 20),
-                    
-                    // Replay Section
-                    _buildSectionTitle('Nghe lại'),
+                    const SectionHeader(title: 'Nghe lại'),
                     const SizedBox(height: 100),
                   ],
                 ),
@@ -143,10 +141,10 @@ class _HomePageState extends State<HomePage> {
         children: [
           // Profile Avatar with gradient border
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF23DD5B), Color(0xFF00C9FF)],
+              gradient: LinearGradient(
+                colors: AppColors.primaryGradient,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -154,13 +152,13 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.all(2),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: Colors.black,
+              backgroundColor: AppColors.background,
               child: CircleAvatar(
                 radius: 16,
-                backgroundColor: Colors.grey[800],
+                backgroundColor: AppColors.surface,
                 backgroundImage: const AssetImage('assets/images/ellipse1.png'),
                 onBackgroundImageError: (exception, stackTrace) {},
-                child: const Icon(Icons.person, size: 16, color: Colors.white),
+                child: const Icon(Icons.person, size: 16, color: AppColors.textPrimary),
               ),
             ),
           ),
@@ -171,16 +169,16 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Chào buổi tối',
-                  style: TextStyle(
-                    color: Colors.grey[400],
+                  GreetingUtils.getGreeting(),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
                 const Text(
                   'Soul Sync',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -193,7 +191,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               IconButton(
                 icon: const Icon(Icons.notifications_outlined),
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 iconSize: 28,
                 onPressed: () {},
               ),
@@ -204,7 +202,7 @@ class _HomePageState extends State<HomePage> {
                   width: 10,
                   height: 10,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF23DD5B),
+                    color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -217,141 +215,107 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTabFilters() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-      child: Row(
-        children: [
-          _buildTabChip('Tất cả', 0, true),
-          const SizedBox(width: 7),
-          _buildTabChip('Âm nhạc', 1, false),
-          const SizedBox(width: 7),
-          _buildTabChip('Podcast', 2, false),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabChip(String label, int index, bool isSelected) {
-    return GestureDetector(
-      onTap: () {
-        // Handle tab selection
+    return AppFilterChipRow(
+      labels: const [AppStrings.all, AppStrings.music, AppStrings.podcast],
+      selectedIndex: _selectedFilterIndex,
+      onSelected: (index) {
+        setState(() => _selectedFilterIndex = index);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF23DD5B) : const Color(0xFF222222),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
     );
   }
 
   Widget _buildQuickAccessGrid() {
+    final items = [
+      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
+      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
+      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
+      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
+      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
+      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
+      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
+      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
+    ];
+
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: Column(
         children: [
-          Row(
-            children: [
-              _buildQuickAccessItem('EM XINH SAY\nHI 2025', const Color.fromARGB(255, 233, 30, 99)),
-              const SizedBox(width: 9),
-              _buildQuickAccessItem('ANH TRAI SAY\nHI 2025', Colors.blue),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _buildQuickAccessItem('EM XINH SAY\nHI 2025', Colors.pink),
-              const SizedBox(width: 9),
-              _buildQuickAccessItem('ANH TRAI SAY\nHI 2025', Colors.blue),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _buildQuickAccessItem('EM XINH SAY\nHI 2025', Colors.pink),
-              const SizedBox(width: 9),
-              _buildQuickAccessItem('ANH TRAI SAY\nHI 2025', Colors.blue),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _buildQuickAccessItem('EM XINH SAY\nHI 2025', Colors.pink),
-              const SizedBox(width: 9),
-              _buildQuickAccessItem('ANH TRAI SAY\nHI 2025', Colors.blue),
-            ],
-          ),
+          for (int i = 0; i < items.length; i += 2)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildQuickAccessItem(
+                      items[i]['title'] as String,
+                      items[i]['color'] as Color,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  if (i + 1 < items.length)
+                    Expanded(
+                      child: _buildQuickAccessItem(
+                        items[i + 1]['title'] as String,
+                        items[i + 1]['color'] as Color,
+                      ),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildQuickAccessItem(String title, Color color) {
-    return Expanded(
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: const Color(0xFF222222),
-          borderRadius: BorderRadius.circular(5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: const Icon(Icons.music_note, color: Colors.white),
-            ),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  height: 1.3,
-                ),
-              ),
-            ),
-          ],
-        ),
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(5),
       ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: const Icon(Icons.music_note, color: AppColors.textPrimary),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildRecentlyPlayedList() {
     if (_isLoading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: CircularProgressIndicator(color: Color(0xFF23DD5B)),
+      return const Padding(
+        padding: EdgeInsets.all(20.0),
+        child: AppLoadingIndicator(),
+      );
+    }
+
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: AppErrorState(
+          message: _error!,
+          onRetry: _loadSongs,
         ),
       );
     }
@@ -359,127 +323,24 @@ class _HomePageState extends State<HomePage> {
     if (_songs.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(20.0),
-        child: Text(
-          'Chưa có bài hát. Vui lòng thêm dữ liệu vào Supabase.',
-          style: TextStyle(color: Colors.white70),
-          textAlign: TextAlign.center,
+        child: AppEmptyState(
+          icon: Icons.music_off,
+          title: AppStrings.noSong,
+          subtitle: 'Vui lòng thêm dữ liệu vào Supabase.',
         ),
       );
     }
 
-    // Map Supabase data to expected format
-    final songs = _songs.map((song) => {
-      'id': song['id'],
-      'songName': song['title'],
-      'artistName': song['artist_name'],
-      'albumName': song['album_name'],
-      'coverUrl': song['cover_url'],
-      'audioUrl': song['audio_url'],
-      'duration': song['duration'],
-    }).toList();
-
     return Column(
-      children: songs.take(6).map((song) {
-        return _buildSongItem(song, songs);
+      children: _songs.take(6).toList().asMap().entries.map((entry) {
+        final index = entry.key;
+        final song = entry.value;
+        return SongListTile(
+          song: song.toPlayerFormat(),
+          onTap: () => _onSongTap(song, index),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        );
       }).toList(),
     );
   }
-
-  Widget _buildSongItem(Map<String, dynamic> song, List<Map<String, dynamic>> allSongs) {
-    return InkWell(
-      onTap: () async {
-        // Play song khi click
-        final songIndex = allSongs.indexOf(song);
-        await _audioService.setPlaylist(allSongs, songIndex);
-        
-        // Navigate to Now Playing
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const NowPlayingPage(),
-            ),
-          );
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-        child: Row(
-          children: [
-            // Song cover
-            ClipRRect(
-              borderRadius: BorderRadius.circular(5),
-              child: song['coverUrl'] != null
-                  ? (song['coverUrl'].toString().startsWith('http')
-                      ? Image.network(
-                          song['coverUrl'],
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 50,
-                            height: 50,
-                            color: Colors.grey[800],
-                            child: const Icon(Icons.music_note, color: Colors.white),
-                          ),
-                        )
-                      : Image.asset(
-                          song['coverUrl'],
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 50,
-                            height: 50,
-                            color: Colors.grey[800],
-                            child: const Icon(Icons.music_note, color: Colors.white),
-                          ),
-                        ))
-                  : Container(
-                      width: 50,
-                      height: 50,
-                      color: Colors.grey[800],
-                      child: const Icon(Icons.music_note, color: Colors.white),
-                    ),
-            ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  song['songName'] ?? 'Unknown',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  song['artistName'] ?? 'Unknown Artist',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 15,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-            const Icon(
-              Icons.more_vert,
-              color: Colors.white,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
 }

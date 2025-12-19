@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
+import 'models/models.dart';
 import 'now_playing_page.dart';
+import 'core/core.dart';
 
 class LibraryPage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -17,12 +19,20 @@ class _LibraryPageState extends State<LibraryPage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioService = AudioPlayerService();
   
-  String _activeFilter = 'all'; // all, playlists, albums, liked
+  int _activeFilterIndex = 0; // 0=all, 1=playlists, 2=albums, 3=liked
   
-  List<Map<String, dynamic>> _playlists = [];
-  List<Map<String, dynamic>> _albums = [];
-  List<Map<String, dynamic>> _songs = [];
+  List<Playlist> _playlists = [];
+  List<Album> _albums = [];
+  List<Song> _songs = [];
   bool _isLoading = true;
+  String? _error;
+
+  static const _filterLabels = [
+    AppStrings.all,
+    AppStrings.playlist,
+    AppStrings.album,
+    AppStrings.liked,
+  ];
 
   @override
   void initState() {
@@ -31,7 +41,11 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    
     try {
       final results = await Future.wait([
         _supabaseService.getPublicPlaylists(),
@@ -41,31 +55,46 @@ class _LibraryPageState extends State<LibraryPage> {
       
       if (mounted) {
         setState(() {
-          _playlists = results[0];
-          _albums = results[1];
-          _songs = results[2];
+          _playlists = (results[0] as List).map((json) => Playlist.fromJson(json)).toList();
+          _albums = (results[1] as List).map((json) => Album.fromJson(json)).toList();
+          _songs = (results[2] as List).map((json) => Song.fromJson(json)).toList();
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
       }
+    }
+  }
+
+  void _onSongTap(Song song, int index) async {
+    final playlist = _songs.map((s) => s.toPlayerFormat()).toList();
+    await _audioService.setPlaylist(playlist, index);
+    
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const NowPlayingPage(),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(),
             _buildFilterPills(),
-            Expanded(
-              child: _buildContent(),
-            ),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
@@ -83,15 +112,15 @@ class _LibraryPageState extends State<LibraryPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'Thư viện của bạn',
+            AppStrings.yourLibrary,
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.add, color: Colors.white, size: 28),
+            icon: const Icon(Icons.add, color: AppColors.textPrimary, size: 28),
             onPressed: () {},
           ),
         ],
@@ -100,67 +129,37 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildFilterPills() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _buildFilterChip('Tất cả', 'all'),
-          const SizedBox(width: 8),
-          _buildFilterChip('Playlist', 'playlists'),
-          const SizedBox(width: 8),
-          _buildFilterChip('Album', 'albums'),
-          const SizedBox(width: 8),
-          _buildFilterChip('Đã thích', 'liked'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value) {
-    final isSelected = _activeFilter == value;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _activeFilter = value;
-        });
+    return AppFilterChipRow(
+      labels: _filterLabels,
+      selectedIndex: _activeFilterIndex,
+      onSelected: (index) {
+        setState(() => _activeFilterIndex = index);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF23DD5B) : const Color(0xFF222222),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.black : Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
     );
   }
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF23DD5B)),
-      );
+      return const AppLoadingPage(message: 'Đang tải thư viện...');
+    }
+
+    if (_error != null) {
+      return AppErrorState(message: _error!, onRetry: _loadData);
     }
     
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         children: [
-          if (_activeFilter == 'all' || _activeFilter == 'liked')
+          if (_activeFilterIndex == 0 || _activeFilterIndex == 3)
             _buildLikedSongsCard(),
-          if (_activeFilter == 'all' || _activeFilter == 'playlists')
+          if (_activeFilterIndex == 0 || _activeFilterIndex == 1)
             _buildPlaylistsSection(),
-          if (_activeFilter == 'all' || _activeFilter == 'albums')
+          if (_activeFilterIndex == 0 || _activeFilterIndex == 2)
             _buildAlbumsSection(),
-          if (_activeFilter == 'liked') _buildLikedSongsList(),
+          if (_activeFilterIndex == 3) 
+            _buildLikedSongsList(),
           const SizedBox(height: 100),
         ],
       ),
@@ -173,7 +172,7 @@ class _LibraryPageState extends State<LibraryPage> {
       child: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF7E22CE), Color(0xFF9333EA)],
+            colors: AppColors.purpleGradient,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -182,11 +181,7 @@ class _LibraryPageState extends State<LibraryPage> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () {
-              setState(() {
-                _activeFilter = 'liked';
-              });
-            },
+            onTap: () => setState(() => _activeFilterIndex = 3),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -203,11 +198,7 @@ class _LibraryPageState extends State<LibraryPage> {
                       ),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Icon(
-                      Icons.favorite,
-                      color: Colors.white,
-                      size: 32,
-                    ),
+                    child: const Icon(Icons.favorite, color: AppColors.textPrimary, size: 32),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -215,9 +206,9 @@ class _LibraryPageState extends State<LibraryPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Bài hát đã thích',
+                          AppStrings.likedSongs,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -225,10 +216,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         const SizedBox(height: 4),
                         Text(
                           '${_songs.length} bài hát',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
                         ),
                       ],
                     ),
@@ -250,12 +238,12 @@ class _LibraryPageState extends State<LibraryPage> {
         children: [
           const Row(
             children: [
-              Icon(Icons.queue_music, color: Colors.grey, size: 20),
+              Icon(Icons.queue_music, color: AppColors.textMuted, size: 20),
               SizedBox(width: 8),
               Text(
-                'Playlist của tôi',
+                AppStrings.myPlaylists,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -266,56 +254,30 @@ class _LibraryPageState extends State<LibraryPage> {
           if (_playlists.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Text(
-                'Chưa có playlist',
-                style: TextStyle(color: Colors.grey),
-              ),
+              child: Text(AppStrings.noPlaylist, style: TextStyle(color: AppColors.textMuted)),
             )
           else
-            ..._playlists.map((playlist) => _buildPlaylistItem(playlist)),
+            ..._playlists.map(_buildPlaylistItem),
         ],
       ),
     );
   }
 
-  Widget _buildPlaylistItem(Map<String, dynamic> playlist) {
+  Widget _buildPlaylistItem(Playlist playlist) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: playlist['cover_url'] != null
-                ? Image.network(
-                    playlist['cover_url'],
-                    width: 64,
-                    height: 64,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 64,
-                        height: 64,
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.music_note, color: Colors.white),
-                      );
-                    },
-                  )
-                : Container(
-                    width: 64,
-                    height: 64,
-                    color: Colors.grey[800],
-                    child: const Icon(Icons.music_note, color: Colors.white),
-                  ),
-          ),
+          AppImage.playlist(url: playlist.coverUrl),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  playlist['name'] ?? 'Unknown',
+                  playlist.name,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                   ),
@@ -323,12 +285,9 @@ class _LibraryPageState extends State<LibraryPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Playlist',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
+                const Text(
+                  AppStrings.playlist,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 ),
               ],
             ),
@@ -346,12 +305,12 @@ class _LibraryPageState extends State<LibraryPage> {
         children: [
           const Row(
             children: [
-              Icon(Icons.album, color: Colors.grey, size: 20),
+              Icon(Icons.album, color: AppColors.textMuted, size: 20),
               SizedBox(width: 8),
               Text(
-                'Album',
+                AppStrings.album,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -362,56 +321,30 @@ class _LibraryPageState extends State<LibraryPage> {
           if (_albums.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Text(
-                'Chưa có album',
-                style: TextStyle(color: Colors.grey),
-              ),
+              child: Text(AppStrings.noAlbum, style: TextStyle(color: AppColors.textMuted)),
             )
           else
-            ..._albums.map((album) => _buildAlbumItem(album)),
+            ..._albums.map(_buildAlbumItem),
         ],
       ),
     );
   }
 
-  Widget _buildAlbumItem(Map<String, dynamic> album) {
+  Widget _buildAlbumItem(Album album) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: album['cover_url'] != null
-                ? Image.network(
-                    album['cover_url'],
-                    width: 64,
-                    height: 64,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 64,
-                        height: 64,
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.album, color: Colors.white),
-                      );
-                    },
-                  )
-                : Container(
-                    width: 64,
-                    height: 64,
-                    color: Colors.grey[800],
-                    child: const Icon(Icons.album, color: Colors.white),
-                  ),
-          ),
+          AppImage.album(url: album.coverUrl),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  album['name'] ?? 'Unknown',
+                  album.name,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                   ),
@@ -420,11 +353,8 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Album • ${album['artists']?['name'] ?? 'Unknown'}',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
+                  '${AppStrings.album} • ${album.artist}',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -443,9 +373,9 @@ class _LibraryPageState extends State<LibraryPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Bài hát đã thích',
+            AppStrings.likedSongs,
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -454,106 +384,19 @@ class _LibraryPageState extends State<LibraryPage> {
           if (_songs.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Text(
-                'Chưa có bài hát',
-                style: TextStyle(color: Colors.grey),
-              ),
+              child: Text(AppStrings.noSong, style: TextStyle(color: AppColors.textMuted)),
             )
           else
-            ..._songs.map((song) => _buildSongItem(song)),
+            ..._songs.asMap().entries.map((entry) {
+              final index = entry.key;
+              final song = entry.value;
+              return LikedSongListTile(
+                song: song.toPlayerFormat(),
+                isLiked: true,
+                onTap: () => _onSongTap(song, index),
+              );
+            }),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSongItem(Map<String, dynamic> song) {
-    return InkWell(
-      onTap: () async {
-        final playlist = _songs.map((s) => {
-          'id': s['id'],
-          'songName': s['title'],
-          'artistName': s['artist_name'],
-          'albumName': s['album_name'],
-          'coverUrl': s['cover_url'],
-          'audioUrl': s['audio_url'],
-          'duration': s['duration'],
-        }).toList();
-        
-        final index = _songs.indexOf(song);
-        await _audioService.setPlaylist(playlist, index);
-        
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const NowPlayingPage(),
-            ),
-          );
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: song['cover_url'] != null
-                  ? Image.network(
-                      song['cover_url'],
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 56,
-                          height: 56,
-                          color: Colors.grey[800],
-                          child: const Icon(Icons.music_note, color: Colors.white),
-                        );
-                      },
-                    )
-                  : Container(
-                      width: 56,
-                      height: 56,
-                      color: Colors.grey[800],
-                      child: const Icon(Icons.music_note, color: Colors.white),
-                    ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song['title'] ?? 'Unknown',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    song['artist_name'] ?? 'Unknown Artist',
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.favorite,
-              color: Color(0xFF23DD5B),
-              size: 20,
-            ),
-          ],
-        ),
       ),
     );
   }

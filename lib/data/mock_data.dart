@@ -124,19 +124,19 @@ class MockData {
       id: 'ar1',
       name: 'HIEUTHUHAI',
       imageUrl: 'assets/images/ellipse1.png',
-      followers: '2.4M',
+      followers: 2400000,
     ),
     Artist(
       id: 'ar2',
       name: 'Sơn Tùng M-TP',
       imageUrl: 'assets/images/ellipse2.png',
-      followers: '1.8M',
+      followers: 1800000,
     ),
     Artist(
       id: 'ar3',
       name: 'Phương Mỹ Chi',
       imageUrl: 'assets/images/ellipse3.png',
-      followers: '3.2M',
+      followers: 3200000,
     ),
   ];
 }
