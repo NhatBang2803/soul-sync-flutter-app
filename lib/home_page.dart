@@ -3,8 +3,10 @@ import 'components/bottom_nav_bar.dart';
 import 'now_playing_page.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
-import 'models/song.dart';
+import 'services/queue_service.dart';
+import 'models/models.dart';
 import 'core/core.dart';
+import 'pages/artist_page.dart';
 
 class HomePage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -19,8 +21,13 @@ class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
   final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioService = AudioPlayerService();
+  final QueueService _queueService = QueueService();
   
   List<Song> _songs = [];
+  List<Genre> _genres = [];
+  Map<String, List<Song>> _rankingsByGenre = {};
+  List<Artist> _topArtists = [];
+  List<Song> _newReleases = [];
   bool _isLoading = true;
   String? _error;
   int _selectedFilterIndex = 0;
@@ -29,21 +36,73 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_scrollListener);
-    _loadSongs();
+    _loadData();
   }
 
-  Future<void> _loadSongs() async {
+  Future<void> _loadData() async {
     try {
       setState(() {
         _isLoading = true;
         _error = null;
       });
       
-      final songsData = await _supabaseService.getSongs();
+      // Load songs (required)
+      List<Map<String, dynamic>> songsData = [];
+      try {
+        songsData = await _supabaseService.getSongs();
+      } catch (e) {
+        print('Error loading songs: $e');
+      }
+
+      // Load genres (optional)
+      List<Map<String, dynamic>> genresData = [];
+      try {
+        genresData = await _supabaseService.getGenres();
+      } catch (e) {
+        print('Error loading genres: $e');
+      }
+
+      // Load top artists (optional)
+      List<Map<String, dynamic>> artistsData = [];
+      try {
+        artistsData = await _supabaseService.getWeeklyArtistRanking();
+      } catch (e) {
+        // Fallback to regular artists list
+        try {
+          artistsData = await _supabaseService.getArtists();
+        } catch (e2) {
+          print('Error loading artists: $e2');
+        }
+      }
+
+      // Load new releases (optional)
+      List<Map<String, dynamic>> releasesData = [];
+      try {
+        releasesData = await _supabaseService.getNewReleases();
+      } catch (e) {
+        print('Error loading new releases: $e');
+      }
       
       if (mounted) {
+        final genres = genresData.map((json) => Genre.fromJson(json)).toList();
+        
+        // Load song rankings for each genre
+        final rankingsMap = <String, List<Song>>{};
+        for (final genre in genres.take(4)) {
+          try {
+            final rankings = await _supabaseService.getWeeklySongRankingByGenre(genre.name);
+            rankingsMap[genre.name] = rankings.map((json) => Song.fromJson(json)).toList();
+          } catch (e) {
+            rankingsMap[genre.name] = [];
+          }
+        }
+
         setState(() {
           _songs = songsData.map((json) => Song.fromJson(json)).toList();
+          _genres = genres;
+          _rankingsByGenre = rankingsMap;
+          _topArtists = artistsData.map((json) => Artist.fromJson(json)).toList();
+          _newReleases = releasesData.map((json) => Song.fromJson(json)).toList();
           _isLoading = false;
         });
       }
@@ -73,7 +132,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _resetPage() {
-    _loadSongs();
+    _loadData();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(AppStrings.refresh),
@@ -83,9 +142,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _onSongTap(Song song, int index) async {
-    final playlist = _songs.map((s) => s.toPlayerFormat()).toList();
-    await _audioService.setPlaylist(playlist, index);
+  void _onSongTap(Song song, List<Song> playlist, int index) async {
+    _queueService.replaceQueue(playlist, startIndex: index);
+    final playerPlaylist = playlist.map((s) => s.toPlayerFormat()).toList();
+    await _audioService.setPlaylist(playerPlaylist, index);
     
     if (mounted) {
       Navigator.push(
@@ -115,10 +175,23 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     _buildQuickAccessGrid(),
                     const SizedBox(height: 20),
+                    // Weekly Artist Ranking
+                    if (_topArtists.isNotEmpty) ...[
+                      const SectionHeader(title: 'Nghệ sĩ hàng đầu tuần này'),
+                      _buildArtistRanking(),
+                      const SizedBox(height: 20),
+                    ],
+                    // New Releases
+                    if (_newReleases.isNotEmpty) ...[
+                      const SectionHeader(title: 'Mới phát hành'),
+                      _buildNewReleases(),
+                      const SizedBox(height: 20),
+                    ],
+                    // Song Rankings by Genre
+                    ..._buildGenreRankings(),
+                    const SizedBox(height: 20),
                     const SectionHeader(title: 'Nội dung bạn nghe gần đây'),
                     _buildRecentlyPlayedList(),
-                    const SizedBox(height: 20),
-                    const SectionHeader(title: 'Nghe lại'),
                     const SizedBox(height: 100),
                   ],
                 ),
@@ -230,10 +303,6 @@ class _HomePageState extends State<HomePage> {
       {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
       {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
       {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
-      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
-      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
-      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
-      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
     ];
 
     return Padding(
@@ -302,6 +371,356 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ==================== ARTIST RANKING ====================
+
+  Widget _buildArtistRanking() {
+    return SizedBox(
+      height: 160,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _topArtists.take(10).length,
+        itemBuilder: (context, index) {
+          final artist = _topArtists[index];
+          return _buildArtistRankingItem(artist, index + 1);
+        },
+      ),
+    );
+  }
+
+  Widget _buildArtistRankingItem(Artist artist, int rank) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => ArtistPage(artistId: artist.id)),
+        );
+      },
+      child: Container(
+        width: 110,
+        margin: const EdgeInsets.only(right: 12),
+        child: Column(
+          children: [
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 45,
+                  backgroundColor: AppColors.surface,
+                  backgroundImage: artist.imageUrl != null 
+                      ? NetworkImage(artist.imageUrl!) 
+                      : null,
+                  child: artist.imageUrl == null
+                      ? const Icon(Icons.person, size: 40, color: AppColors.textMuted)
+                      : null,
+                ),
+                // Rank badge
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: _getRankColor(rank),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.background, width: 2),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$rank',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              artist.name,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              artist.formattedFollowers,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getRankColor(int rank) {
+    switch (rank) {
+      case 1:
+        return const Color(0xFFFFD700); // Gold
+      case 2:
+        return const Color(0xFFC0C0C0); // Silver
+      case 3:
+        return const Color(0xFFCD7F32); // Bronze
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  // ==================== NEW RELEASES ====================
+
+  Widget _buildNewReleases() {
+    return SizedBox(
+      height: 180,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _newReleases.take(10).length,
+        itemBuilder: (context, index) {
+          final song = _newReleases[index];
+          return _buildNewReleaseItem(song, index);
+        },
+      ),
+    );
+  }
+
+  Widget _buildNewReleaseItem(Song song, int index) {
+    return GestureDetector(
+      onTap: () => _onSongTap(song, _newReleases, index),
+      child: Container(
+        width: 130,
+        margin: const EdgeInsets.only(right: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: song.coverUrl != null
+                      ? Image.network(
+                          song.coverUrl!,
+                          width: 130,
+                          height: 130,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildDefaultCover(),
+                        )
+                      : _buildDefaultCover(),
+                ),
+                // "Mới" badge
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Mới',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              song.title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              song.allArtists,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== GENRE RANKINGS ====================
+
+  List<Widget> _buildGenreRankings() {
+    final widgets = <Widget>[];
+    
+    for (final genre in _genres.take(4)) {
+      final songs = _rankingsByGenre[genre.name] ?? [];
+      if (songs.isEmpty) continue;
+
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: _parseColor(genre.color),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Top ${genre.displayName} tuần này',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...songs.take(5).toList().asMap().entries.map((entry) {
+                return _buildRankingSongItem(entry.value, entry.key + 1, songs);
+              }),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return widgets;
+  }
+
+  Widget _buildRankingSongItem(Song song, int rank, List<Song> playlist) {
+    return InkWell(
+      onTap: () => _onSongTap(song, playlist, rank - 1),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // Rank number
+            SizedBox(
+              width: 32,
+              child: Text(
+                '$rank',
+                style: TextStyle(
+                  color: _getRankColor(rank),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Cover
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: song.coverUrl != null
+                  ? Image.network(
+                      song.coverUrl!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 48,
+                        height: 48,
+                        color: AppColors.surface,
+                        child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                      ),
+                    )
+                  : Container(
+                      width: 48,
+                      height: 48,
+                      color: AppColors.surface,
+                      child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            // Song info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    song.allArtists,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Play count
+            Text(
+              '${song.playCount}',
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _parseColor(String? hexColor) {
+    if (hexColor == null || hexColor.isEmpty) return AppColors.primary;
+    try {
+      return Color(int.parse(hexColor.replaceFirst('#', '0xFF')));
+    } catch (e) {
+      return AppColors.primary;
+    }
+  }
+
+  Widget _buildDefaultCover() {
+    return Container(
+      width: 130,
+      height: 130,
+      color: AppColors.surface,
+      child: const Icon(Icons.music_note, size: 40, color: AppColors.textMuted),
+    );
+  }
+
   Widget _buildRecentlyPlayedList() {
     if (_isLoading) {
       return const Padding(
@@ -315,7 +734,7 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(20.0),
         child: AppErrorState(
           message: _error!,
-          onRetry: _loadSongs,
+          onRetry: _loadData,
         ),
       );
     }
@@ -337,7 +756,7 @@ class _HomePageState extends State<HomePage> {
         final song = entry.value;
         return SongListTile(
           song: song.toPlayerFormat(),
-          onTap: () => _onSongTap(song, index),
+          onTap: () => _onSongTap(song, _songs, index),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         );
       }).toList(),

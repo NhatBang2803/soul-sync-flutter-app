@@ -8,7 +8,8 @@ class MockData {
     Song(
       id: '1',
       title: 'Ai cũng phải bắt đầu từ đâu đó',
-      artist: 'HIEUTHUHAI',
+      artistNames: ['HIEUTHUHAI'],
+      artistIds: ['ar1'],
       album: 'Trại sáng tác 2024',
       duration: 245,
       coverUrl: 'assets/images/image11.png',
@@ -17,7 +18,8 @@ class MockData {
     Song(
       id: '2',
       title: 'ẾCH NGOÀI ĐÁY GIẾNG',
-      artist: 'Phương Mỹ Chi',
+      artistNames: ['Phương Mỹ Chi'],
+      artistIds: ['ar3'],
       album: 'Single',
       duration: 198,
       coverUrl: 'assets/images/image3.png',
@@ -26,7 +28,8 @@ class MockData {
     Song(
       id: '3',
       title: 'Ngân nga',
-      artist: 'HIEUTHUHAI',
+      artistNames: ['HIEUTHUHAI'],
+      artistIds: ['ar1'],
       album: 'Trại sáng tác',
       duration: 312,
       coverUrl: 'assets/images/image11.png',
@@ -35,7 +38,8 @@ class MockData {
     Song(
       id: '4',
       title: 'Mưa tháng sáu',
-      artist: 'Sơn Tùng M-TP',
+      artistNames: ['Sơn Tùng M-TP'],
+      artistIds: ['ar2'],
       album: 'M-TP',
       duration: 267,
       coverUrl: 'assets/images/image6.png',
@@ -44,7 +48,8 @@ class MockData {
     Song(
       id: '5',
       title: 'Em của ngày hôm qua',
-      artist: 'Sơn Tùng M-TP',
+      artistNames: ['Sơn Tùng M-TP'],
+      artistIds: ['ar2'],
       album: 'M-TP',
       duration: 289,
       coverUrl: 'assets/images/image7.png',
@@ -53,7 +58,8 @@ class MockData {
     Song(
       id: '6',
       title: 'Lạc trôi',
-      artist: 'Sơn Tùng M-TP',
+      artistNames: ['Sơn Tùng M-TP'],
+      artistIds: ['ar2'],
       album: 'M-TP',
       duration: 215,
       coverUrl: 'assets/images/image8.png',

@@ -1,135 +1,219 @@
+import 'dart:async';
 import 'package:just_audio/just_audio.dart';
 
-/// Service để quản lý audio player
+/// Service để quản lý phát nhạc
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
   factory AudioPlayerService() => _instance;
-  AudioPlayerService._internal();
 
-  final AudioPlayer _player = AudioPlayer();
-  
-  // Current playlist
-  List<Map<String, dynamic>> _playlist = [];
+  AudioPlayerService._internal() {
+    _audioPlayer = AudioPlayer();
+    _setupPlayerListeners();
+  }
+
+  late final AudioPlayer _audioPlayer;
+  final List<Map<String, dynamic>> _playlist = [];
   int _currentIndex = 0;
+  
+  // Sleep timer
+  Timer? _sleepTimer;
+  Duration? _sleepDuration;
+  DateTime? _sleepStartTime;
 
-  // Getters
-  AudioPlayer get player => _player;
-  List<Map<String, dynamic>> get playlist => _playlist;
-  int get currentIndex => _currentIndex;
+  // Streams
+  Stream<PlayerState> get playerStateStream => _audioPlayer.playerStateStream;
+  Stream<Duration> get positionStream => _audioPlayer.positionStream;
+  Stream<Duration?> get durationStream => _audioPlayer.durationStream;
+  Stream<bool> get playingStream => _audioPlayer.playingStream;
+
+  // Current state
+  bool get isPlaying => _audioPlayer.playing;
+  Duration get position => _audioPlayer.position;
+  Duration get duration => _audioPlayer.duration ?? Duration.zero;
   Map<String, dynamic>? get currentSong => 
-      _playlist.isEmpty ? null : _playlist[_currentIndex];
+      _playlist.isNotEmpty && _currentIndex < _playlist.length 
+          ? _playlist[_currentIndex] 
+          : null;
+  int get currentIndex => _currentIndex;
+  List<Map<String, dynamic>> get playlist => List.unmodifiable(_playlist);
 
-  // Stream getters
-  Stream<Duration> get positionStream => _player.positionStream;
-  Stream<Duration?> get durationStream => _player.durationStream;
-  Stream<PlayerState> get playerStateStream => _player.playerStateStream;
-  Stream<bool> get playingStream => _player.playingStream;
+  // Sleep timer getters
+  Duration? get remainingSleepTime {
+    if (_sleepTimer == null || _sleepStartTime == null || _sleepDuration == null) {
+      return null;
+    }
+    final elapsed = DateTime.now().difference(_sleepStartTime!);
+    final remaining = _sleepDuration! - elapsed;
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+  bool get hasSleepTimer => _sleepTimer != null;
 
-  /// Play a song from URL
+  void _setupPlayerListeners() {
+    _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        _onSongCompleted();
+      }
+    });
+  }
+
+  void _onSongCompleted() {
+    // Move to next song if available
+    if (_currentIndex < _playlist.length - 1) {
+      next();
+    }
+  }
+
+  // ==================== PLAYBACK CONTROL ====================
+
+  /// Set playlist and start playing
+  Future<void> setPlaylist(
+    List<Map<String, dynamic>> songs, [
+    int startIndex = 0,
+  ]) async {
+    _playlist.clear();
+    _playlist.addAll(songs);
+    _currentIndex = startIndex.clamp(0, songs.length - 1);
+
+    if (_playlist.isNotEmpty) {
+      await _loadAndPlay(_playlist[_currentIndex]);
+    }
+  }
+
+  /// Play a single song
   Future<void> playSong(Map<String, dynamic> song) async {
+    _playlist.clear();
+    _playlist.add(song);
+    _currentIndex = 0;
+    await _loadAndPlay(song);
+  }
+
+  Future<void> _loadAndPlay(Map<String, dynamic> song) async {
     try {
-      // Dừng player trước khi load URL mới
-      await _player.stop();
-      
-      // Lấy URL từ audio_url hoặc audioUrl (camelCase) hoặc fileUrl (Firebase)
-      // Hỗ trợ cả snake_case và camelCase
-      final audioUrl = song['audio_url'] ?? song['audioUrl'] ?? song['fileUrl'];
-      
-      print('🔍 Looking for audio URL in song data...');
-      print('📋 Song keys: ${song.keys.toList()}');
-      print('🎵 Found audioUrl: $audioUrl');
-      
-      if (audioUrl != null && audioUrl.toString().startsWith('http')) {
-        print('🎵 Playing from URL: $audioUrl');
-        
-        // Set audio source với các options
-        await _player.setAudioSource(
-          AudioSource.uri(
-            Uri.parse(audioUrl),
-            headers: {
-              'User-Agent': 'MusicApp/1.0',
-            },
-          ),
-        );
-        await _player.play();
-        print('✅ Audio started playing successfully');
-      } else {
-        // Demo: Phát một URL mẫu (cần thay bằng URL thật)
-        print('⚠️ Song URL not available: ${song['title'] ?? song['songName']}');
-        print('📋 Full song data: $song');
-        // Demo URL (thay bằng URL thật)
-        await _player.setUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
-        await _player.play();
+      String? audioUrl = song['audioUrl'] as String?;
+
+      // Handle demo/fallback URLs
+      if (audioUrl == null || audioUrl.isEmpty) {
+        audioUrl = _getDemoUrl();
       }
+
+      await _audioPlayer.setUrl(audioUrl);
+      await _audioPlayer.play();
     } catch (e) {
-      print('❌ Error playing song: $e');
-      // Thử phát fallback URL nếu lỗi
+      print('Error loading audio: $e');
+      // Try with demo URL on error
       try {
-        print('🔄 Trying fallback URL...');
-        await _player.setUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
-        await _player.play();
-      } catch (fallbackError) {
-        print('❌ Fallback also failed: $fallbackError');
+        await _audioPlayer.setUrl(_getDemoUrl());
+        await _audioPlayer.play();
+      } catch (e2) {
+        print('Error loading demo audio: $e2');
       }
     }
   }
 
-  /// Set playlist and play from index
-  Future<void> setPlaylist(List<Map<String, dynamic>> songs, int startIndex) async {
-    _playlist = songs;
-    _currentIndex = startIndex;
-    await playSong(_playlist[_currentIndex]);
+  String _getDemoUrl() {
+    return 'https://res.cloudinary.com/demo/video/upload/v1689187345/samples/dance2.mp3';
   }
 
-  /// Play/Pause toggle
+  /// Play
+  Future<void> play() async {
+    await _audioPlayer.play();
+  }
+
+  /// Pause
+  Future<void> pause() async {
+    await _audioPlayer.pause();
+  }
+
+  /// Toggle play/pause
   Future<void> togglePlayPause() async {
-    if (_player.playing) {
-      await _player.pause();
+    if (isPlaying) {
+      await pause();
     } else {
-      await _player.play();
+      await play();
     }
   }
 
-  /// Play next song
-  Future<void> playNext() async {
-    if (_playlist.isEmpty) return;
-    
-    _currentIndex = (_currentIndex + 1) % _playlist.length;
-    await playSong(_playlist[_currentIndex]);
-  }
-
-  /// Play previous song
-  Future<void> playPrevious() async {
-    if (_playlist.isEmpty) return;
-    
-    _currentIndex = (_currentIndex - 1 + _playlist.length) % _playlist.length;
-    await playSong(_playlist[_currentIndex]);
+  /// Stop
+  Future<void> stop() async {
+    await _audioPlayer.stop();
+    cancelSleepTimer();
   }
 
   /// Seek to position
   Future<void> seek(Duration position) async {
-    await _player.seek(position);
+    await _audioPlayer.seek(position);
   }
 
-  /// Stop and clear
-  Future<void> stop() async {
-    await _player.stop();
-    _playlist.clear();
-    _currentIndex = 0;
+  /// Play next song
+  Future<void> next() async {
+    if (_playlist.isEmpty) return;
+
+    _currentIndex = (_currentIndex + 1) % _playlist.length;
+    await _loadAndPlay(_playlist[_currentIndex]);
   }
 
-  /// Dispose
-  void dispose() {
-    _player.dispose();
+  /// Play previous song
+  Future<void> previous() async {
+    if (_playlist.isEmpty) return;
+
+    // If more than 3 seconds into song, restart it
+    if (_audioPlayer.position.inSeconds > 3) {
+      await seek(Duration.zero);
+      return;
+    }
+
+    _currentIndex = (_currentIndex - 1 + _playlist.length) % _playlist.length;
+    await _loadAndPlay(_playlist[_currentIndex]);
   }
 
-  /// Format duration to mm:ss
-  String formatDuration(Duration? duration) {
-    if (duration == null) return '0:00';
+  /// Skip to specific index in playlist
+  Future<void> skipToIndex(int index) async {
+    if (index >= 0 && index < _playlist.length) {
+      _currentIndex = index;
+      await _loadAndPlay(_playlist[_currentIndex]);
+    }
+  }
+
+  // ==================== SLEEP TIMER ====================
+
+  /// Set sleep timer (stops playback after duration)
+  void setSleepTimer(Duration duration) {
+    cancelSleepTimer();
     
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String minutes = twoDigits(duration.inMinutes.remainder(60));
-    String seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+    _sleepDuration = duration;
+    _sleepStartTime = DateTime.now();
+    
+    _sleepTimer = Timer(duration, () {
+      _onSleepTimerComplete();
+    });
+  }
+
+  /// Cancel sleep timer
+  void cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepDuration = null;
+    _sleepStartTime = null;
+  }
+
+  void _onSleepTimerComplete() {
+    // Fade out and pause
+    _audioPlayer.pause();
+    cancelSleepTimer();
+  }
+
+  // ==================== UTILITIES ====================
+
+  /// Format duration to mm:ss string
+  static String formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  /// Dispose player
+  Future<void> dispose() async {
+    cancelSleepTimer();
+    await _audioPlayer.dispose();
   }
 }

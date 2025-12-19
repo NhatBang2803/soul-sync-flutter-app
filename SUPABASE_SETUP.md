@@ -277,15 +277,53 @@ Response chứa `secure_url` → Dùng làm `audio_url` trong Supabase.
 - [ ] Copy credentials vào Flutter app
 - [ ] Test connection từ app
 
-Có bảng xếp hạng bài hát:
+Có bảng xếp hạng bài hát ở trang chủ:
 - Theo số lượt nghe theo thể loại ballab, rap, pop,.. theo tuần
 - Bảng xếp nghệ sĩ/ca sĩ theo tổng lượt nghe trong tuần
 - Top những bài hát mới ra gần đây (1 tuần đổ lại)
 
-Người dùng tự tạo được playlist có thể chỉnh private, public, lưu được bài hát yêu thích
-Bài hát có thể có nhiều ca sĩ một list ca sĩ
-Tìm kiếm chỉ tìm tuyệt đối real time.
-Có thể phát ngẫu nhiên
-Có thể hẹn giờ tắt.
-Ấn vào nghệ sĩ/ca sĩ, có thể xem top 5 nhạc được nghe nhiều nhất, có nút xem được tất cả album,
-Đăng nhập với google oauth.
+Chức năng đăng ký:
+- Người dùng có thể đăng ký tài khoản, yêu cầu nhập username, email, nhập mật khẩu (mã hóa, có icon con mắt để xem lại mật khẩu đã nhập), xác nhận mật khẩu, khi ấn xác nhận mật khẩu thì lập tức quay về trang đăng nhập.
+Chức năng đăng nhập:
+- Người dùng đăng nhập tài khoản bằng username hoặc email (nếu chuỗi có @ thì coi là mail, không có @ thì coi là username), mật khẩu, có icon mắt để xem lại mật khẩu đã nhập.
+- Có thêm chức năng quên mật khẩu, khi người dùng quên mật khẩu thì người dùng nhập email, sau đó gửi email xác nhận, khi người dùng nhận được email xác nhận thì người dùng có thể thay đổi mật khẩu.
+- Người dùng có thể đăng nhập với google oauth.
+
+Bảng user: username, email, password (trống nếu đăng nhập với google), avatar_url, created_at, updated_at (mở rộng nếu cần thiết)
+Người dùng có thể tạo được playlist có thể chỉnh private, public.
+Bài hát có thể có nhiều ca sĩ (sửa database), một bài hát có thể thuộc nhiều album, một album có nhiều bài. 
+Tìm kiếm theo tên bài hát, tên ca sĩ, tên album real time. Ví dụ trên thanh tìm kiếm nhập một chuỗi là "ai cũng phải bắt đầu từ đâu đó", thì sẽ tìm kiếm theo tên bài hát, tên ca sĩ, tên album, tên playlist có chứa chuỗi "ai cũng phải bắt đầu từ đâu đó".
+Có mục hàng đợi trong miniplayer và trong player chính, mỗi khi người dùng thêm một bài hát vào hàng đợi thì nó sẽ được thêm vào hàng đợi, mỗi khi người dùng xóa một bài hát khỏi hàng đợi thì nó sẽ được xóa khỏi hàng đợi. Mỗi khi người dùng ấn vào album, playlist và ấn được bài hát hiển thị trong album đó thì toàn bộ bài hát của album playlist đó sẽ được thêm vào hàng đợi và chỉ có những bài hát đó mà thôi, ví dụ hàng đợi của người dùng đang có 5 bài hát trong hàng đợi, khi người dùng đang ở trong album thì khi người dùng ấn vào album thì toàn bộ bài hát của album đó sẽ được thêm vào hàng đợi và chỉ có những bài hát đó mà thôi, không có bài hát nào khác ngoài album đó.
+
+Trang album:
+- Hiển thị avatar album, trạng thái album(public, private tất nhiên dòng này chỉ xuất hiện với người dùng có quyền truy cập), tên album, số lượng người nghe, ngày tạo. (Sửa database nếu cần)
+bên dưới là các bài hát trong album đó.
+- Có một slider bên dưới đề xuất ngẫu nhiên các album khác 
+
+Trang playlist:
+- Hiển thị avatar playlist, trạng thái playlist(public, private tất nhiên dòng này chỉ xuất hiện với người dùng có quyền truy cập), tên playlist, số lượng người nghe, ngày tạo. (Sửa database nếu cần)
+bên dưới là các bài hát trong playlist đó.
+
+Trang tài khoản:
+- Ở icon bánh răng trên header thì xóa bỏ.
+- Ở khối thống kê đơn giản đang mockdata playlist, nghệ sĩ và bài hát với tiêu đề chưa rõ ràng, xóa hoàn toàn các khối thông tin và mục bên dưới.
+- Sửa lại thành 4 khối thông tin chính nằm xếp chồng lên nhau:
++ Mỗi khối có 2 phần là header và boy nằm xếp chồng, header gồm title bên trái: "Lịch sử nghe gần đây,...", bên phải là nút xem tất cả. Còn với body thì là danh sách tương ứng.
++ 4 khối thông tin gồm Lịch sử nghe gần đây, nghệ sĩ đang theo dõi, playlist đã tạo, album nghe gần đây. Đối với bài hát thì danh sách bảng dọc, nghệ sĩ và album/playlist thì danh sách ngang như các slider.
+
+Có chức năng phát bài hát ngẫu nhiên. Lấy các bài hát có trong hàng đợi:
+- Trường hợp không có nhãn lặp: nếu đã phát hết bài hát trong hàng đợi thì gọi một lệnh lấy 10 bài ngẫu nhiên trong cơ sở dữ liệu thêm vào hàng đợi và tiếp tục phát.
+- Trường hợp lặp chỉ một bài: chức năng phát ngẫu nhiên sẽ không hoạt động và chỉ phát một bài hát duy nhất.
+- Trường hợp lặp theo hàng đợi: sẽ chỉ phát ngẫu nhiên các bài có trong hàng đợi, khi hết bài hát trong hàng đợi thì sẽ quay lại đầu hàng đợi và tiếp tục phát.
+
+- Có thể hẹn giờ tắt.
+
+Trang nghệ sĩ/ca sĩ:
+- Hiển thị avatar nghệ sĩ, tên nghệ sĩ, số lượng người nghe trong tháng. (Sửa database nếu cần).
+- Kế bên có nút theo dõi.
+
+- Bên dưới trang của nghệ sĩ có 3 khối thông tin được bố trí tương tự profile của người dùng nhưng:
++ Khối bài hát được nghe nhiều nhất, chỉ hiện 5 bài hát được nghe nhiều nhất của nghệ sĩ/ca sĩ đó.
++ Khối album hiện tương tự như cách hiện của user, nhưng ấn vào xem tất cả sẽ liệt kê hết toàn bộ album và từng bài hát của nghệ sĩ và ca sĩ đó và có thể ấn vào một bài bất kì để nghe, nhóm theo từng album.
++ Khối Featering: hiện các bài hát có nghệ sĩ ca sĩ khác tham gia, có thể ấn vào một bài bất kì để nghe.
+

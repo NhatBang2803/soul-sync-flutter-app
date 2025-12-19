@@ -6,6 +6,9 @@ class Album {
   final String? coverUrl;
   final int? year;
   final int songCount;
+  final int listenCount;
+  final bool isPublic;
+  final DateTime? createdAt;
 
   Album({
     required this.id,
@@ -15,6 +18,9 @@ class Album {
     this.coverUrl,
     this.year,
     this.songCount = 0,
+    this.listenCount = 0,
+    this.isPublic = true,
+    this.createdAt,
   });
 
   /// Create Album from Supabase JSON
@@ -35,6 +41,11 @@ class Album {
       coverUrl: json['cover_url'] ?? json['coverUrl'],
       year: json['release_year'] ?? json['year'],
       songCount: json['song_count'] ?? 0,
+      listenCount: json['listen_count'] ?? json['listenCount'] ?? 0,
+      isPublic: json['is_public'] ?? json['isPublic'] ?? true,
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at']) 
+          : null,
     );
   }
 
@@ -48,7 +59,26 @@ class Album {
       'cover_url': coverUrl,
       'release_year': year,
       'song_count': songCount,
+      'listen_count': listenCount,
+      'is_public': isPublic,
+      'created_at': createdAt?.toIso8601String(),
     };
+  }
+
+  /// Format listen count
+  String get formattedListenCount {
+    if (listenCount >= 1000000) {
+      return '${(listenCount / 1000000).toStringAsFixed(1)}M lượt nghe';
+    } else if (listenCount >= 1000) {
+      return '${(listenCount / 1000).toStringAsFixed(1)}K lượt nghe';
+    }
+    return '$listenCount lượt nghe';
+  }
+
+  /// Format created date
+  String get formattedCreatedDate {
+    if (createdAt == null) return '';
+    return '${createdAt!.day}/${createdAt!.month}/${createdAt!.year}';
   }
 
   Album copyWith({
@@ -59,6 +89,9 @@ class Album {
     String? coverUrl,
     int? year,
     int? songCount,
+    int? listenCount,
+    bool? isPublic,
+    DateTime? createdAt,
   }) {
     return Album(
       id: id ?? this.id,
@@ -68,6 +101,9 @@ class Album {
       coverUrl: coverUrl ?? this.coverUrl,
       year: year ?? this.year,
       songCount: songCount ?? this.songCount,
+      listenCount: listenCount ?? this.listenCount,
+      isPublic: isPublic ?? this.isPublic,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
