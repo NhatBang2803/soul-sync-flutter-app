@@ -731,9 +731,9 @@ class _HomePageState extends State<HomePage> {
                 size: 26,
               ),
             ),
-            // Play count
+            // Duration thay vì play count
             Text(
-              '${song.playCount}',
+              song.formattedDuration,
               style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
           ],

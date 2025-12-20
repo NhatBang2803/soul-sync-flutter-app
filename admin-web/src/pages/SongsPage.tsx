@@ -1,14 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
-import { Music, Plus, Pencil, Trash2, Search, Loader2, Clock, Play, Mic2, Tag } from 'lucide-react'
+import { Music, Plus, Pencil, Trash2, Search, Loader2, Clock, Play, Mic2, Tag, Disc } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { FileUpload } from '@/components/ui/file-upload'
 import { MultiSelect, type Option } from '@/components/ui/multi-select'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
 import {
     Dialog,
     DialogContent,
@@ -35,8 +43,8 @@ import {
     TableRow,
 } from '@/components/ui/table'
 
-import { songService, artistService, genreService } from '@/services'
-import type { Song, Artist, Genre } from '@/schemas'
+import { songService, artistService, genreService, albumService } from '@/services'
+import type { Song, Artist, Genre, Album } from '@/schemas'
 
 interface SongFormData {
     title: string
@@ -58,6 +66,7 @@ export default function SongsPage() {
     const [filteredSongs, setFilteredSongs] = useState<Song[]>([])
     const [artists, setArtists] = useState<Artist[]>([])
     const [genres, setGenres] = useState<Genre[]>([])
+    const [albums, setAlbums] = useState<Album[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [dialogOpen, setDialogOpen] = useState(false)
@@ -65,6 +74,8 @@ export default function SongsPage() {
     const [selectedSong, setSelectedSong] = useState<Song | null>(null)
     const [selectedArtistIds, setSelectedArtistIds] = useState<string[]>([])
     const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>([])
+    const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null)
+    const [isSingle, setIsSingle] = useState(false)
     const [saving, setSaving] = useState(false)
 
     const form = useForm<SongFormData>({
@@ -93,15 +104,17 @@ export default function SongsPage() {
 
     const loadData = useCallback(async () => {
         try {
-            const [songsData, artistsData, genresData] = await Promise.all([
+            const [songsData, artistsData, genresData, albumsData] = await Promise.all([
                 songService.getAll(),
                 artistService.getAll(),
                 genreService.getAll(),
+                albumService.getAll(),
             ])
             setSongs(songsData)
             setFilteredSongs(songsData)
             setArtists(artistsData)
             setGenres(genresData)
+            setAlbums(albumsData)
         } catch (error) {
             toast.error('Không thể tải dữ liệu')
             console.error(error)
@@ -132,6 +145,8 @@ export default function SongsPage() {
         setSelectedSong(null)
         setSelectedArtistIds([])
         setSelectedGenreIds([])
+        setSelectedAlbumId(null)
+        setIsSingle(false)
         form.reset({
             title: '',
             audio_url: '',
@@ -152,18 +167,22 @@ export default function SongsPage() {
             play_count: song.play_count || 0,
         })
 
-        // Load existing artists and genres for this song
+        // Load existing artists, genres and album for this song
         try {
-            const [songArtists, songGenres] = await Promise.all([
+            const [songArtists, songGenres, songAlbum] = await Promise.all([
                 songService.getArtists(song.id!),
                 songService.getGenres(song.id!),
+                songService.getAlbum(song.id!),
             ])
             setSelectedArtistIds(songArtists?.map((sa) => sa.artist_id) || [])
             setSelectedGenreIds(songGenres?.map((sg) => sg.genre_id) || [])
+            setSelectedAlbumId(songAlbum?.album_id || null)
+            setIsSingle(false)
         } catch (error) {
             console.error('Failed to load song artists/genres:', error)
             setSelectedArtistIds([])
             setSelectedGenreIds([])
+            setSelectedAlbumId(null)
         }
 
         setDialogOpen(true)
@@ -178,6 +197,7 @@ export default function SongsPage() {
         setSaving(true)
         try {
             let songId: string
+            let albumIdToLink: string | null = null
 
             if (selectedSong?.id) {
                 await songService.update(selectedSong.id, data)
@@ -189,11 +209,37 @@ export default function SongsPage() {
                 toast.success('Thêm bài hát thành công')
             }
 
-            // Update artists and genres for this song
+            // Handle album: single or existing album
+            if (isSingle) {
+                // Tạo album mới cho đĩa đơn
+                const singleAlbum = await albumService.create({
+                    name: `[Đĩa đơn] - ${data.title}`,
+                    cover_url: data.cover_url || null,
+                    release_year: new Date().getFullYear(),
+                    song_count: 1,
+                    listen_count: 0,
+                    is_public: true,
+                })
+                albumIdToLink = singleAlbum.id!
+                // Link artist to album
+                if (selectedArtistIds.length > 0) {
+                    await albumService.setArtists(albumIdToLink, selectedArtistIds)
+                }
+                toast.success('Đã tạo album đĩa đơn')
+            } else if (selectedAlbumId) {
+                albumIdToLink = selectedAlbumId
+            }
+
+            // Update artists, genres, and album for this song
             await Promise.all([
                 songService.setArtists(songId, selectedArtistIds),
                 songService.setGenres(songId, selectedGenreIds),
             ])
+
+            // Link song to album if applicable
+            if (albumIdToLink) {
+                await songService.setAlbum(songId, albumIdToLink)
+            }
 
             setDialogOpen(false)
             loadData()
@@ -408,6 +454,50 @@ export default function SongsPage() {
                             </p>
                         </div>
 
+                        {/* Album Selection */}
+                        <div className="space-y-3 p-4 rounded-lg bg-[hsl(var(--muted))]/30">
+                            <div className="flex items-center justify-between">
+                                <Label className="flex items-center gap-2">
+                                    <Disc className="h-4 w-4" />
+                                    Album / Đĩa đơn
+                                </Label>
+                                <div className="flex items-center gap-2">
+                                    <Switch
+                                        checked={isSingle}
+                                        onCheckedChange={(checked) => {
+                                            setIsSingle(checked)
+                                            if (checked) setSelectedAlbumId(null)
+                                        }}
+                                    />
+                                    <span className="text-sm text-[hsl(var(--muted-foreground))]">
+                                        Đĩa đơn
+                                    </span>
+                                </div>
+                            </div>
+
+                            {isSingle ? (
+                                <p className="text-xs text-[hsl(var(--primary))]">
+                                    Sẽ tự động tạo album: [Đĩa đơn] - {form.watch('title') || 'Tên bài hát'}
+                                </p>
+                            ) : (
+                                <Select
+                                    value={selectedAlbumId || ''}
+                                    onValueChange={(value) => setSelectedAlbumId(value || null)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Chọn album (tuỳ chọn)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {albums.map((album) => (
+                                            <SelectItem key={album.id} value={album.id!}>
+                                                {album.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
+
                         {/* Audio Upload */}
                         <div className="space-y-2">
                             <Label>File audio *</Label>
@@ -420,6 +510,12 @@ export default function SongsPage() {
                                         onChange={field.onChange}
                                         type="audio"
                                         placeholder="Kéo thả file audio (MP3, WAV...)"
+                                        onUploadComplete={(result) => {
+                                            if (result.duration) {
+                                                form.setValue('duration', Math.round(result.duration))
+                                                toast.success(`Đã cập nhật thời lượng: ${formatDuration(Math.round(result.duration))}`)
+                                            }
+                                        }}
                                     />
                                 )}
                             />
@@ -454,8 +550,9 @@ export default function SongsPage() {
                                     id="duration"
                                     type="number"
                                     {...form.register('duration', { valueAsNumber: true })}
-                                    placeholder="180"
-                                    className="h-11"
+                                    placeholder="Tự động tính"
+                                    className="h-11 bg-muted"
+                                    readOnly
                                 />
                             </div>
                             <div className="space-y-2">

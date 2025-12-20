@@ -1,13 +1,14 @@
 import * as React from 'react'
 import { useRef, useState } from 'react'
-import { Upload, X, Loader2, Check, Image, Music, FileAudio } from 'lucide-react'
+import { Upload, X, Image, Music, FileAudio } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { uploadToCloudinary, getFileType } from '@/lib/cloudinary'
+import { uploadToCloudinary, getFileType, type UploadResult } from '@/lib/cloudinary'
 import { Button } from './button'
 
 interface FileUploadProps {
     value?: string
     onChange: (url: string) => void
+    onUploadComplete?: (result: UploadResult) => void
     accept?: string
     type?: 'image' | 'audio'
     className?: string
@@ -17,6 +18,7 @@ interface FileUploadProps {
 export function FileUpload({
     value,
     onChange,
+    onUploadComplete,
     accept,
     type = 'image',
     className,
@@ -41,6 +43,7 @@ export function FileUpload({
             const resourceType = getFileType(file)
             const result = await uploadToCloudinary(file, resourceType, setProgress)
             onChange(result.secure_url)
+            onUploadComplete?.(result)
         } catch (err) {
             setError('Upload thất bại. Vui lòng thử lại.')
             console.error(err)

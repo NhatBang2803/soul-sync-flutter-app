@@ -37,6 +37,13 @@ class _SearchPageState extends State<SearchPage> {
   List<Album> _albumResults = [];
   List<Playlist> _playlistResults = [];
 
+  // Random suggestions khi không có kết quả
+  List<Song> _randomSongs = [];
+  List<Artist> _randomArtists = [];
+  List<Album> _randomAlbums = [];
+  List<Playlist> _randomPlaylists = [];
+  bool _isLoadingSuggestions = false;
+
   int _selectedCategoryIndex = 0;
   final List<String> _categories = [
     'Tất cả',
@@ -108,6 +115,11 @@ class _SearchPageState extends State<SearchPage> {
           _hasSearched = true;
           _isSearching = false;
         });
+
+        // Nếu không có kết quả, fetch random suggestions
+        if (!_hasResults) {
+          _fetchRandomSuggestions();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -115,6 +127,56 @@ class _SearchPageState extends State<SearchPage> {
           _isSearching = false;
           _hasSearched = true;
         });
+        // Fetch random suggestions khi có lỗi
+        _fetchRandomSuggestions();
+      }
+    }
+  }
+
+  /// Fetch random suggestions khi không có kết quả tìm kiếm
+  Future<void> _fetchRandomSuggestions() async {
+    if (_isLoadingSuggestions) return;
+
+    setState(() => _isLoadingSuggestions = true);
+
+    try {
+      final results = await Future.wait([
+        _supabaseService.getRandomSongs(3),
+        _supabaseService.getArtists(), // Get all then take 3
+        _supabaseService.getRandomAlbums(3),
+        _supabaseService.getPublicPlaylists(), // Get all then take 3
+      ]);
+
+      if (mounted) {
+        final artists = (results[1] as List).toList();
+        artists.shuffle();
+
+        final playlists = (results[3] as List).toList();
+        playlists.shuffle();
+
+        setState(() {
+          _randomSongs = (results[0] as List)
+              .map<Song>((json) => Song.fromJson(json))
+              .take(3)
+              .toList();
+          _randomArtists = artists
+              .take(3)
+              .map<Artist>((json) => Artist.fromJson(json))
+              .toList();
+          _randomAlbums = (results[2] as List)
+              .map<Album>((json) => Album.fromJson(json))
+              .take(3)
+              .toList();
+          _randomPlaylists = playlists
+              .take(3)
+              .map<Playlist>((json) => Playlist.fromJson(json))
+              .toList();
+          _isLoadingSuggestions = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingSuggestions = false);
       }
     }
   }
@@ -263,11 +325,7 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     if (!_hasResults) {
-      return const AppEmptyState(
-        icon: Icons.search_off,
-        title: 'Không tìm thấy kết quả',
-        subtitle: 'Hãy thử tìm kiếm với từ khóa khác',
-      );
+      return _buildNoResultsWithSuggestions();
     }
 
     return SingleChildScrollView(
@@ -287,6 +345,132 @@ class _SearchPageState extends State<SearchPage> {
           // Playlists
           if (_shouldShowCategory(4) && _playlistResults.isNotEmpty)
             _buildPlaylistsSection(),
+          const SizedBox(height: 100),
+        ],
+      ),
+    );
+  }
+
+  /// Build no results message với random suggestions
+  Widget _buildNoResultsWithSuggestions() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 24),
+          // Message
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: AppColors.primary.withOpacity(0.8),
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Không có thông tin phù hợp với yêu cầu của bạn, nhưng có thể bạn sẽ thích những nội dung bên dưới',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Loading suggestions
+          if (_isLoadingSuggestions)
+            const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: AppLoadingIndicator()),
+            )
+          else ...[
+            // Random Songs
+            if (_randomSongs.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Bài hát gợi ý',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ..._randomSongs.map((song) => _buildSongItem(song)),
+            ],
+
+            // Random Artists
+            if (_randomArtists.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Nghệ sĩ gợi ý',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _randomArtists.length,
+                  itemBuilder: (context, index) {
+                    return _buildArtistItem(_randomArtists[index]);
+                  },
+                ),
+              ),
+            ],
+
+            // Random Albums
+            if (_randomAlbums.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Album gợi ý',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ..._randomAlbums.map((album) => _buildAlbumItem(album)),
+            ],
+
+            // Random Playlists
+            if (_randomPlaylists.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Playlist gợi ý',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ..._randomPlaylists.map(
+                (playlist) => _buildPlaylistItem(playlist),
+              ),
+            ],
+          ],
+
           const SizedBox(height: 100),
         ],
       ),

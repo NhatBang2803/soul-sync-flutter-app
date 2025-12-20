@@ -107,7 +107,29 @@ class SupabaseService {
         .eq('genre_name', genreName)
         .order('rank')
         .limit(10);
-    return List<Map<String, dynamic>>.from(response);
+
+    // Enrich với artist info từ songs_with_artists
+    final enriched = <Map<String, dynamic>>[];
+    for (final song in response) {
+      try {
+        final songWithArtist = await client
+            .from('songs_with_artists')
+            .select('artist_name, artist_ids, artist_names')
+            .eq('id', song['id'])
+            .maybeSingle();
+
+        enriched.add({
+          ...song,
+          'artist_name': songWithArtist?['artist_name'] ?? 'Unknown Artist',
+          'artist_ids': songWithArtist?['artist_ids'] ?? [],
+          'artist_names': songWithArtist?['artist_names'] ?? [],
+        });
+      } catch (e) {
+        enriched.add(song);
+      }
+    }
+
+    return enriched;
   }
 
   /// Lấy tất cả thể loại có bảng xếp hạng
@@ -189,15 +211,33 @@ class SupabaseService {
 
   /// Theo dõi nghệ sĩ
   Future<void> followArtist(String userId, String artistId) async {
-    await client.from('user_follows').upsert({
+    // Kiểm tra đã follow chưa để tránh duplicate key error
+    final existing = await client
+        .from('user_follows')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('artist_id', artistId)
+        .maybeSingle();
+
+    if (existing != null) {
+      // Đã follow rồi, không làm gì
+      return;
+    }
+
+    await client.from('user_follows').insert({
       'user_id': userId,
       'artist_id': artistId,
     });
-    // Update followers count
-    await client.rpc(
-      'increment_artist_followers',
-      params: {'p_artist_id': artistId},
-    );
+
+    // Update followers count (bỏ qua nếu function không tồn tại)
+    try {
+      await client.rpc(
+        'increment_artist_followers',
+        params: {'p_artist_id': artistId},
+      );
+    } catch (e) {
+      // Ignore if function doesn't exist
+    }
   }
 
   /// Bỏ theo dõi nghệ sĩ

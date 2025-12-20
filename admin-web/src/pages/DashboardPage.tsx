@@ -9,9 +9,12 @@ import {
     Tag,
     TrendingUp,
     ArrowRight,
-    Sparkles
+    Sparkles,
+    Database
 } from 'lucide-react'
 import { statsService } from '@/services'
+import { Button } from '@/components/ui/button'
+import { BackupDialog } from '@/components/BackupDialog'
 
 interface Stats {
     artists: number
@@ -34,6 +37,7 @@ const statCards = [
 export default function DashboardPage() {
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
+    const [backupOpen, setBackupOpen] = useState(false)
 
     useEffect(() => {
         const loadStats = async () => {
@@ -52,16 +56,22 @@ export default function DashboardPage() {
     return (
         <div className="space-y-8 animate-fade-in">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--accent))] shadow-2xl glow">
-                    <Sparkles className="h-8 w-8 text-white" />
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--accent))] shadow-2xl glow">
+                        <Sparkles className="h-8 w-8 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-4xl font-bold gradient-text">Dashboard</h1>
+                        <p className="text-[hsl(var(--muted-foreground))] mt-1">
+                            Tổng quan hệ thống Soul Sync
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-4xl font-bold gradient-text">Dashboard</h1>
-                    <p className="text-[hsl(var(--muted-foreground))] mt-1">
-                        Tổng quan hệ thống Soul Sync
-                    </p>
-                </div>
+                <Button variant="outline" onClick={() => setBackupOpen(true)}>
+                    <Database className="h-4 w-4 mr-2" />
+                    Xuất file backup
+                </Button>
             </div>
 
             {/* Stats Grid */}
@@ -144,6 +154,9 @@ export default function DashboardPage() {
                     💡 <span className="font-medium">Tip:</span> Kéo thả file để upload ảnh và audio trực tiếp lên Cloudinary
                 </p>
             </div>
+
+            {/* Backup Dialog */}
+            <BackupDialog open={backupOpen} onOpenChange={setBackupOpen} />
         </div>
     )
 }

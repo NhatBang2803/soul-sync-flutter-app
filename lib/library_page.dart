@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
+import 'services/auth_service.dart';
 import 'models/models.dart';
 import 'now_playing_page.dart';
 import 'core/core.dart';
@@ -20,6 +21,7 @@ class LibraryPage extends StatefulWidget {
 class _LibraryPageState extends State<LibraryPage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioService = AudioPlayerService();
+  final AuthService _authService = AuthService();
 
   int _activeFilterIndex = 0; // 0=all, 1=playlists, 2=albums, 3=liked
 
@@ -49,8 +51,14 @@ class _LibraryPageState extends State<LibraryPage> {
     });
 
     try {
+      // Lấy user ID hiện tại, nếu không đăng nhập thì trả về danh sách rỗng
+      final userId = _authService.currentUserId;
+
       final results = await Future.wait([
-        _supabaseService.getPublicPlaylists(),
+        // Chỉ lấy playlist của người dùng đang đăng nhập
+        userId != null
+            ? _supabaseService.getUserPlaylists(userId)
+            : Future.value(<Map<String, dynamic>>[]),
         _supabaseService.getAlbums(),
         _supabaseService.getSongs(),
       ]);

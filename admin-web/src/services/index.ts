@@ -164,6 +164,15 @@ export const albumService = {
             if (error) throw error
         }
     },
+
+    async updateSongCount(albumId: string) {
+        const { count, error } = await supabase
+            .from('album_songs')
+            .select('*', { count: 'exact', head: true })
+            .eq('album_id', albumId)
+        if (error) throw error
+        await supabase.from('albums').update({ song_count: count || 0 }).eq('id', albumId)
+    },
 }
 
 // ============ SONGS ============
@@ -249,6 +258,30 @@ export const songService = {
             )
             if (error) throw error
         }
+    },
+
+    async setAlbum(songId: string, albumId: string, trackNumber: number = 1) {
+        // Remove existing album links for this song
+        await supabase.from('album_songs').delete().eq('song_id', songId)
+        // Add new link
+        const { error } = await supabase.from('album_songs').insert({
+            song_id: songId,
+            album_id: albumId,
+            track_number: trackNumber,
+        })
+        if (error) throw error
+        // Update album song count
+        await albumService.updateSongCount(albumId)
+    },
+
+    async getAlbum(songId: string) {
+        const { data, error } = await supabase
+            .from('album_songs')
+            .select('album_id, albums(*)')
+            .eq('song_id', songId)
+            .maybeSingle()
+        if (error) throw error
+        return data
     },
 }
 

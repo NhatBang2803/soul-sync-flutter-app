@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:just_audio/just_audio.dart';
+import 'queue_service.dart';
 
 /// Service để quản lý phát nhạc
 class AudioPlayerService {
@@ -12,9 +13,10 @@ class AudioPlayerService {
   }
 
   late final AudioPlayer _audioPlayer;
+  final QueueService _queueService = QueueService();
   final List<Map<String, dynamic>> _playlist = [];
   int _currentIndex = 0;
-  
+
   // Sleep timer
   Timer? _sleepTimer;
   Duration? _sleepDuration;
@@ -30,22 +32,25 @@ class AudioPlayerService {
   bool get isPlaying => _audioPlayer.playing;
   Duration get position => _audioPlayer.position;
   Duration get duration => _audioPlayer.duration ?? Duration.zero;
-  Map<String, dynamic>? get currentSong => 
-      _playlist.isNotEmpty && _currentIndex < _playlist.length 
-          ? _playlist[_currentIndex] 
-          : null;
+  Map<String, dynamic>? get currentSong =>
+      _playlist.isNotEmpty && _currentIndex < _playlist.length
+      ? _playlist[_currentIndex]
+      : null;
   int get currentIndex => _currentIndex;
   List<Map<String, dynamic>> get playlist => List.unmodifiable(_playlist);
 
   // Sleep timer getters
   Duration? get remainingSleepTime {
-    if (_sleepTimer == null || _sleepStartTime == null || _sleepDuration == null) {
+    if (_sleepTimer == null ||
+        _sleepStartTime == null ||
+        _sleepDuration == null) {
       return null;
     }
     final elapsed = DateTime.now().difference(_sleepStartTime!);
     final remaining = _sleepDuration! - elapsed;
     return remaining.isNegative ? Duration.zero : remaining;
   }
+
   bool get hasSleepTimer => _sleepTimer != null;
 
   void _setupPlayerListeners() {
@@ -57,9 +62,31 @@ class AudioPlayerService {
   }
 
   void _onSongCompleted() {
-    // Move to next song if available
-    if (_currentIndex < _playlist.length - 1) {
-      next();
+    if (_playlist.isEmpty) return;
+
+    final repeatMode = _queueService.repeatMode;
+
+    switch (repeatMode) {
+      case RepeatMode.one:
+        // Lặp lại bài hiện tại
+        seek(Duration.zero);
+        play();
+        break;
+
+      case RepeatMode.queue:
+        // Lặp toàn bộ hàng đợi - quay về đầu nếu hết
+        _currentIndex = (_currentIndex + 1) % _playlist.length;
+        _loadAndPlay(_playlist[_currentIndex]);
+        break;
+
+      case RepeatMode.off:
+        // Chỉ chuyển bài nếu còn bài tiếp theo, dừng nếu hết
+        if (_currentIndex < _playlist.length - 1) {
+          _currentIndex++;
+          _loadAndPlay(_playlist[_currentIndex]);
+        }
+        // Nếu hết danh sách thì dừng (không làm gì thêm)
+        break;
     }
   }
 
@@ -179,10 +206,10 @@ class AudioPlayerService {
   /// Set sleep timer (stops playback after duration)
   void setSleepTimer(Duration duration) {
     cancelSleepTimer();
-    
+
     _sleepDuration = duration;
     _sleepStartTime = DateTime.now();
-    
+
     _sleepTimer = Timer(duration, () {
       _onSleepTimerComplete();
     });
