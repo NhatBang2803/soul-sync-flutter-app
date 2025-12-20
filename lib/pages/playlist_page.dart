@@ -5,6 +5,7 @@ import '../services/audio_player_service.dart';
 import '../services/queue_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
+import '../components/add_to_playlist_dialog.dart';
 
 class PlaylistPage extends StatefulWidget {
   final String playlistId;
@@ -38,7 +39,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
         _error = null;
       });
 
-      final result = await _supabaseService.getPlaylistWithSongs(widget.playlistId);
+      final result = await _supabaseService.getPlaylistWithSongs(
+        widget.playlistId,
+      );
 
       if (mounted && result != null) {
         setState(() {
@@ -220,7 +223,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
           ),
           const SizedBox(height: 8),
           // Description
-          if (_playlist!.description != null && _playlist!.description!.isNotEmpty)
+          if (_playlist!.description != null &&
+              _playlist!.description!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
@@ -241,8 +245,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _playlist!.isPublic 
-                      ? AppColors.primary.withOpacity(0.2) 
+                  color: _playlist!.isPublic
+                      ? AppColors.primary.withOpacity(0.2)
                       : AppColors.surface,
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -252,16 +256,16 @@ class _PlaylistPageState extends State<PlaylistPage> {
                     Icon(
                       _playlist!.isPublic ? Icons.public : Icons.lock,
                       size: 14,
-                      color: _playlist!.isPublic 
-                          ? AppColors.primary 
+                      color: _playlist!.isPublic
+                          ? AppColors.primary
                           : AppColors.textSecondary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _playlist!.isPublic ? 'Công khai' : 'Riêng tư',
                       style: TextStyle(
-                        color: _playlist!.isPublic 
-                            ? AppColors.primary 
+                        color: _playlist!.isPublic
+                            ? AppColors.primary
                             : AppColors.textSecondary,
                         fontSize: 12,
                       ),
@@ -384,14 +388,22 @@ class _PlaylistPageState extends State<PlaylistPage> {
                         width: 48,
                         height: 48,
                         color: AppColors.surface,
-                        child: const Icon(Icons.music_note, color: AppColors.textMuted, size: 24),
+                        child: const Icon(
+                          Icons.music_note,
+                          color: AppColors.textMuted,
+                          size: 24,
+                        ),
                       ),
                     )
                   : Container(
                       width: 48,
                       height: 48,
                       color: AppColors.surface,
-                      child: const Icon(Icons.music_note, color: AppColors.textMuted, size: 24),
+                      child: const Icon(
+                        Icons.music_note,
+                        color: AppColors.textMuted,
+                        size: 24,
+                      ),
                     ),
             ),
             const SizedBox(width: 12),
@@ -423,6 +435,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
                 ],
               ),
             ),
+            // Add to another playlist button
+            AddToPlaylistButton(
+              songId: song.id,
+              songTitle: song.title,
+              size: 26,
+            ),
+            const SizedBox(width: 8),
             // Duration
             Text(
               song.formattedDuration,

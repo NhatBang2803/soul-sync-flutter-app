@@ -6,6 +6,7 @@ import '../services/queue_service.dart';
 import '../services/auth_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
+import '../components/add_to_playlist_dialog.dart';
 import 'album_page.dart';
 
 class ArtistPage extends StatefulWidget {
@@ -55,7 +56,10 @@ class _ArtistPageState extends State<ArtistPage> {
       bool isFollowing = false;
       final userId = _authService.currentUserId;
       if (userId != null) {
-        isFollowing = await _supabaseService.isFollowingArtist(userId, widget.artistId);
+        isFollowing = await _supabaseService.isFollowingArtist(
+          userId,
+          widget.artistId,
+        );
       }
 
       if (mounted) {
@@ -287,13 +291,16 @@ class _ArtistPageState extends State<ArtistPage> {
               ElevatedButton(
                 onPressed: _toggleFollow,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isFollowing 
-                      ? AppColors.surface 
+                  backgroundColor: _isFollowing
+                      ? AppColors.surface
                       : AppColors.primary,
-                  foregroundColor: _isFollowing 
-                      ? AppColors.textPrimary 
+                  foregroundColor: _isFollowing
+                      ? AppColors.textPrimary
                       : Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -383,14 +390,20 @@ class _ArtistPageState extends State<ArtistPage> {
                         width: 48,
                         height: 48,
                         color: AppColors.surface,
-                        child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                        child: const Icon(
+                          Icons.music_note,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     )
                   : Container(
                       width: 48,
                       height: 48,
                       color: AppColors.surface,
-                      child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                      child: const Icon(
+                        Icons.music_note,
+                        color: AppColors.textMuted,
+                      ),
                     ),
             ),
             const SizedBox(width: 12),
@@ -420,6 +433,13 @@ class _ArtistPageState extends State<ArtistPage> {
                 ],
               ),
             ),
+            // Add to playlist button
+            AddToPlaylistButton(
+              songId: song.id,
+              songTitle: song.title,
+              size: 26,
+            ),
+            const SizedBox(width: 8),
             // Duration
             Text(
               song.formattedDuration,
@@ -506,14 +526,20 @@ class _ArtistPageState extends State<ArtistPage> {
                         width: 140,
                         height: 140,
                         color: AppColors.surface,
-                        child: const Icon(Icons.album, color: AppColors.textMuted),
+                        child: const Icon(
+                          Icons.album,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     )
                   : Container(
                       width: 140,
                       height: 140,
                       color: AppColors.surface,
-                      child: const Icon(Icons.album, color: AppColors.textMuted),
+                      child: const Icon(
+                        Icons.album,
+                        color: AppColors.textMuted,
+                      ),
                     ),
             ),
             const SizedBox(height: 8),
@@ -557,10 +583,7 @@ class _ArtistPageState extends State<ArtistPage> {
           const SizedBox(height: 8),
           const Text(
             'Các bài hát có sự tham gia của nghệ sĩ khác',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 16),
           ...List.generate(_featuringSongs.take(5).length, (index) {
@@ -592,14 +615,20 @@ class _ArtistPageState extends State<ArtistPage> {
                         width: 48,
                         height: 48,
                         color: AppColors.surface,
-                        child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                        child: const Icon(
+                          Icons.music_note,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     )
                   : Container(
                       width: 48,
                       height: 48,
                       color: AppColors.surface,
-                      child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                      child: const Icon(
+                        Icons.music_note,
+                        color: AppColors.textMuted,
+                      ),
                     ),
             ),
             const SizedBox(width: 12),
@@ -631,9 +660,19 @@ class _ArtistPageState extends State<ArtistPage> {
                 ],
               ),
             ),
+            // Add to playlist button
+            AddToPlaylistButton(
+              songId: song.id,
+              songTitle: song.title,
+              size: 26,
+            ),
+            const SizedBox(width: 4),
             // Play button
             IconButton(
-              icon: const Icon(Icons.play_circle_outline, color: AppColors.primary),
+              icon: const Icon(
+                Icons.play_circle_outline,
+                color: AppColors.primary,
+              ),
               onPressed: () => _playSong(song, _featuringSongs, index),
             ),
           ],
@@ -707,7 +746,8 @@ class _ArtistPageState extends State<ArtistPage> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _supabaseService.getSongsByAlbum(album.id),
       builder: (context, snapshot) {
-        final songs = snapshot.data?.map((json) => Song.fromJson(json)).toList() ?? [];
+        final songs =
+            snapshot.data?.map((json) => Song.fromJson(json)).toList() ?? [];
 
         return ExpansionTile(
           leading: ClipRRect(

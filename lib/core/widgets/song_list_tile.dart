@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'app_image.dart';
+import '../../components/add_to_playlist_dialog.dart';
 
 /// Reusable Song List Tile Widget
 /// Replaces duplicate _buildSongItem implementations across multiple pages
@@ -10,6 +11,7 @@ class SongListTile extends StatelessWidget {
   final VoidCallback? onMoreTap;
   final Widget? trailing;
   final bool showMoreButton;
+  final bool showAddToPlaylistButton;
   final double coverSize;
   final EdgeInsetsGeometry padding;
 
@@ -20,15 +22,20 @@ class SongListTile extends StatelessWidget {
     this.onMoreTap,
     this.trailing,
     this.showMoreButton = true,
+    this.showAddToPlaylistButton = true,
     this.coverSize = 56,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
   });
+
+  /// Get song ID
+  String? get songId => song['id']?.toString();
 
   /// Get song title with fallback
   String get title => song['songName'] ?? song['title'] ?? 'Unknown Song';
 
   /// Get artist name with fallback
-  String get artist => song['artistName'] ?? song['artist_name'] ?? 'Unknown Artist';
+  String get artist =>
+      song['artistName'] ?? song['artist_name'] ?? 'Unknown Artist';
 
   /// Get cover URL
   String? get coverUrl => song['coverUrl'] ?? song['cover_url'];
@@ -42,10 +49,7 @@ class SongListTile extends StatelessWidget {
         child: Row(
           children: [
             // Cover Image
-            AppImage.song(
-              url: coverUrl,
-              size: coverSize,
-            ),
+            AppImage.song(url: coverUrl, size: coverSize),
             const SizedBox(width: 12),
             // Song Info
             Expanded(
@@ -75,8 +79,19 @@ class SongListTile extends StatelessWidget {
                 ],
               ),
             ),
+            // Add to playlist button
+            if (showAddToPlaylistButton && songId != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: AddToPlaylistButton(
+                  songId: songId!,
+                  songTitle: title,
+                  size: 28,
+                ),
+              ),
             // Trailing Widget
-            if (trailing != null) trailing!
+            if (trailing != null)
+              trailing!
             else if (showMoreButton)
               IconButton(
                 icon: const Icon(Icons.more_vert, color: Colors.grey),
@@ -110,6 +125,7 @@ class LikedSongListTile extends StatelessWidget {
       song: song,
       onTap: onTap,
       showMoreButton: false,
+      showAddToPlaylistButton: true,
       trailing: IconButton(
         icon: Icon(
           isLiked ? Icons.favorite : Icons.favorite_border,

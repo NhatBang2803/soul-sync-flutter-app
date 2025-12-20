@@ -74,6 +74,8 @@ export const userSchema = z.object({
     username: z.string().optional().nullable(),
     display_name: z.string().optional().nullable(),
     avatar_url: z.string().url().optional().nullable(),
+    password_hash: z.string().optional().nullable(),
+    auth_method: z.enum(['local', 'google']).default('local'),
     created_at: z.string().optional(),
 })
 

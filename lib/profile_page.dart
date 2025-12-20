@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
+import 'components/add_to_playlist_dialog.dart';
 import 'services/supabase_service.dart';
 import 'services/auth_service.dart';
 import 'models/models.dart';
@@ -10,7 +11,7 @@ import 'pages/playlist_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final Function(int)? onTabChanged;
-  
+
   const ProfilePage({super.key, this.onTabChanged});
 
   @override
@@ -96,6 +97,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildMyPlaylistsSection(),
                     const SizedBox(height: 24),
                     _buildRecentAlbumsSection(),
+                    const SizedBox(height: 28),
+                    _buildLogoutSection(),
                     const SizedBox(height: 100),
                   ],
                 ),
@@ -130,7 +133,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildProfileInfo() {
     final user = _authService.currentAuthUser;
-    
+
     return Column(
       children: [
         Container(
@@ -160,9 +163,9 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 16),
         Text(
-          user?.userMetadata?['display_name'] ?? 
-          user?.userMetadata?['username'] ?? 
-          'Người dùng Soul Sync',
+          user?.userMetadata?['display_name'] ??
+              user?.userMetadata?['username'] ??
+              'Người dùng Soul Sync',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -172,10 +175,7 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 8),
         Text(
           user?.email ?? 'Chưa đăng nhập',
-          style: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 14,
-          ),
+          style: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
       ],
     );
@@ -265,9 +265,16 @@ class _ProfilePageState extends State<ProfilePage> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: Text(
-        song.formattedDuration,
-        style: TextStyle(color: Colors.grey[400]),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AddToPlaylistButton(songId: song.id, songTitle: song.title, size: 26),
+          const SizedBox(width: 12),
+          Text(
+            song.formattedDuration,
+            style: TextStyle(color: Colors.grey[400]),
+          ),
+        ],
       ),
       onTap: () {
         // Play song
@@ -323,7 +330,9 @@ class _ProfilePageState extends State<ProfilePage> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => ArtistPage(artistId: artist.id)),
+          MaterialPageRoute(
+            builder: (context) => ArtistPage(artistId: artist.id),
+          ),
         );
       },
       child: Container(
@@ -334,8 +343,8 @@ class _ProfilePageState extends State<ProfilePage> {
             CircleAvatar(
               radius: 45,
               backgroundColor: Colors.grey[800],
-              backgroundImage: artist.imageUrl != null 
-                  ? NetworkImage(artist.imageUrl!) 
+              backgroundImage: artist.imageUrl != null
+                  ? NetworkImage(artist.imageUrl!)
                   : null,
               child: artist.imageUrl == null
                   ? const Icon(Icons.person, size: 40, color: Colors.white)
@@ -398,7 +407,9 @@ class _ProfilePageState extends State<ProfilePage> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => PlaylistPage(playlistId: playlist.id)),
+          MaterialPageRoute(
+            builder: (context) => PlaylistPage(playlistId: playlist.id),
+          ),
         );
       },
       child: Container(
@@ -415,7 +426,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       width: 130,
                       height: 130,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildDefaultPlaylistCover(),
+                      errorBuilder: (_, __, ___) =>
+                          _buildDefaultPlaylistCover(),
                     )
                   : _buildDefaultPlaylistCover(),
             ),
@@ -440,10 +452,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(width: 4),
                 Text(
                   '${playlist.songCount} bài',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
                 ),
               ],
             ),
@@ -541,10 +550,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             Text(
               album.artist,
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey[400], fontSize: 12),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -561,5 +567,158 @@ class _ProfilePageState extends State<ProfilePage> {
       color: Colors.grey[800],
       child: const Icon(Icons.album, size: 50, color: Colors.white70),
     );
+  }
+
+  // ==================== LOGOUT SECTION ====================
+
+  Widget _buildLogoutSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        children: [
+          const Divider(color: Colors.grey, height: 32),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: _showLogoutConfirmDialog,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.red.shade700, Colors.red.shade900],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout_rounded, color: Colors.white, size: 22),
+                  SizedBox(width: 12),
+                  Text(
+                    'Đăng xuất',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Phiên bản 1.0.0',
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.logout_rounded, color: Colors.red, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Đăng xuất',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?',
+            style: TextStyle(color: Colors.grey, fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Hủy',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _performLogout();
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.red.withOpacity(0.2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'Đăng xuất',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _performLogout() async {
+    final result = await _authService.signOut();
+
+    if (mounted) {
+      if (result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Đã đăng xuất thành công'),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        // Navigate back to login/main page
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? 'Đăng xuất thất bại'),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
   }
 }

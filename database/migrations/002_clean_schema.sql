@@ -26,6 +26,8 @@ CREATE TABLE users (
   username VARCHAR(50) UNIQUE,
   display_name VARCHAR(255),
   avatar_url TEXT,
+  password_hash TEXT,  -- bcrypt hash, NULL for OAuth users
+  auth_method VARCHAR(20) DEFAULT 'local' NOT NULL, -- 'local' or 'google'
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

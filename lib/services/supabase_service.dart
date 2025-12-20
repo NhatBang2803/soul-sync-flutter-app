@@ -9,7 +9,7 @@ class SupabaseService {
   SupabaseClient get client => Supabase.instance.client;
 
   // ==================== SONGS ====================
-  
+
   /// Lấy tất cả bài hát với thông tin artist và album
   Future<List<Map<String, dynamic>>> getSongs() async {
     final response = await client
@@ -37,7 +37,7 @@ class SupabaseService {
         .eq('artist_id', artistId)
         .order('position');
     return List<Map<String, dynamic>>.from(
-      response.map((r) => r['songs_with_artists'])
+      response.map((r) => r['songs_with_artists']),
     );
   }
 
@@ -49,15 +49,16 @@ class SupabaseService {
         .eq('album_id', albumId)
         .order('track_number');
     return List<Map<String, dynamic>>.from(
-      response.map((r) => r['songs_with_artists'])
+      response.map((r) => r['songs_with_artists']),
     );
   }
 
   /// Lấy bài hát ngẫu nhiên
   Future<List<Map<String, dynamic>>> getRandomSongs(int limit) async {
-    final response = await client.rpc('get_random_songs', params: {
-      'limit_count': limit,
-    });
+    final response = await client.rpc(
+      'get_random_songs',
+      params: {'limit_count': limit},
+    );
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -83,18 +84,23 @@ class SupabaseService {
     int durationPlayed = 0,
     bool completed = false,
   }) async {
-    await client.rpc('record_listening', params: {
-      'p_user_id': userId,
-      'p_song_id': songId,
-      'p_duration': durationPlayed,
-      'p_completed': completed,
-    });
+    await client.rpc(
+      'record_listening',
+      params: {
+        'p_user_id': userId,
+        'p_song_id': songId,
+        'p_duration': durationPlayed,
+        'p_completed': completed,
+      },
+    );
   }
 
   // ==================== RANKINGS ====================
 
   /// Lấy bảng xếp hạng bài hát theo tuần theo thể loại
-  Future<List<Map<String, dynamic>>> getWeeklySongRankingByGenre(String genreName) async {
+  Future<List<Map<String, dynamic>>> getWeeklySongRankingByGenre(
+    String genreName,
+  ) async {
     final response = await client
         .from('weekly_song_rankings')
         .select()
@@ -106,10 +112,7 @@ class SupabaseService {
 
   /// Lấy tất cả thể loại có bảng xếp hạng
   Future<List<Map<String, dynamic>>> getGenres() async {
-    final response = await client
-        .from('genres')
-        .select()
-        .order('name');
+    final response = await client.from('genres').select().order('name');
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -134,13 +137,10 @@ class SupabaseService {
   }
 
   // ==================== ARTISTS ====================
-  
+
   /// Lấy tất cả nghệ sĩ
   Future<List<Map<String, dynamic>>> getArtists() async {
-    final response = await client
-        .from('artists')
-        .select()
-        .order('name');
+    final response = await client.from('artists').select().order('name');
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -155,15 +155,22 @@ class SupabaseService {
   }
 
   /// Lấy top bài hát của nghệ sĩ
-  Future<List<Map<String, dynamic>>> getArtistTopSongs(String artistId, {int limit = 5}) async {
+  Future<List<Map<String, dynamic>>> getArtistTopSongs(
+    String artistId, {
+    int limit = 5,
+  }) async {
     final response = await client
         .from('song_artists')
         .select('songs_with_artists(*)')
         .eq('artist_id', artistId)
-        .order('play_count', ascending: false, referencedTable: 'songs_with_artists')
+        .order(
+          'play_count',
+          ascending: false,
+          referencedTable: 'songs_with_artists',
+        )
         .limit(limit);
     return List<Map<String, dynamic>>.from(
-      response.map((r) => r['songs_with_artists'])
+      response.map((r) => r['songs_with_artists']),
     );
   }
 
@@ -176,7 +183,7 @@ class SupabaseService {
         .eq('role', 'featuring')
         .limit(20);
     return List<Map<String, dynamic>>.from(
-      response.map((r) => r['songs_with_artists'])
+      response.map((r) => r['songs_with_artists']),
     );
   }
 
@@ -187,7 +194,10 @@ class SupabaseService {
       'artist_id': artistId,
     });
     // Update followers count
-    await client.rpc('increment_artist_followers', params: {'p_artist_id': artistId});
+    await client.rpc(
+      'increment_artist_followers',
+      params: {'p_artist_id': artistId},
+    );
   }
 
   /// Bỏ theo dõi nghệ sĩ
@@ -217,13 +227,11 @@ class SupabaseService {
         .select('artists(*)')
         .eq('user_id', userId)
         .order('followed_at', ascending: false);
-    return List<Map<String, dynamic>>.from(
-      response.map((r) => r['artists'])
-    );
+    return List<Map<String, dynamic>>.from(response.map((r) => r['artists']));
   }
 
   // ==================== ALBUMS ====================
-  
+
   /// Lấy tất cả album
   Future<List<Map<String, dynamic>>> getAlbums() async {
     final response = await client
@@ -250,7 +258,7 @@ class SupabaseService {
         .select('albums_with_artists(*)')
         .eq('artist_id', artistId);
     return List<Map<String, dynamic>>.from(
-      response.map((r) => r['albums_with_artists'])
+      response.map((r) => r['albums_with_artists']),
     );
   }
 
@@ -268,7 +276,7 @@ class SupabaseService {
   }
 
   // ==================== PLAYLISTS ====================
-  
+
   /// Lấy tất cả playlist public
   Future<List<Map<String, dynamic>>> getPublicPlaylists() async {
     final response = await client
@@ -296,13 +304,13 @@ class SupabaseService {
         .select()
         .eq('id', playlistId)
         .single();
-    
+
     final songs = await client
         .from('playlist_songs')
         .select('position, songs_with_artists(*)')
         .eq('playlist_id', playlistId)
         .order('position');
-    
+
     return {
       ...playlist,
       'songs': songs.map((s) => s['songs_with_artists']).toList(),
@@ -317,13 +325,17 @@ class SupabaseService {
     required String ownerId,
     bool isPublic = true,
   }) async {
-    final response = await client.from('playlists').insert({
-      'name': name,
-      'description': description,
-      'cover_url': coverUrl,
-      'owner_id': ownerId,
-      'is_public': isPublic,
-    }).select().single();
+    final response = await client
+        .from('playlists')
+        .insert({
+          'name': name,
+          'description': description,
+          'cover_url': coverUrl,
+          'owner_id': ownerId,
+          'is_public': isPublic,
+        })
+        .select()
+        .single();
     return response;
   }
 
@@ -360,17 +372,27 @@ class SupabaseService {
         .eq('playlist_id', playlistId)
         .order('position', ascending: false)
         .limit(1);
-    
+
     final newPosition = maxPos.isEmpty ? 0 : (maxPos[0]['position'] as int) + 1;
-    
+
     await client.from('playlist_songs').insert({
       'playlist_id': playlistId,
       'song_id': songId,
       'position': newPosition,
     });
 
-    // Update song count
-    await client.rpc('update_playlist_song_count', params: {'p_playlist_id': playlistId});
+    // Update song count directly - đếm số bài hát trong playlist
+    final countResult = await client
+        .from('playlist_songs')
+        .select('id')
+        .eq('playlist_id', playlistId);
+
+    final songCount = countResult.length;
+
+    await client
+        .from('playlists')
+        .update({'song_count': songCount})
+        .eq('id', playlistId);
   }
 
   /// Xóa bài hát khỏi playlist
@@ -383,7 +405,7 @@ class SupabaseService {
   }
 
   // ==================== USER LIKES ====================
-  
+
   /// Kiểm tra bài hát có được like không
   Future<bool> isSongLiked(String userId, String songId) async {
     final response = await client
@@ -419,13 +441,20 @@ class SupabaseService {
         .select('song_id, songs_with_artists(*)')
         .eq('user_id', userId)
         .order('liked_at', ascending: false);
-    return response.map<Map<String, dynamic>>((r) => r['songs_with_artists'] as Map<String, dynamic>).toList();
+    return response
+        .map<Map<String, dynamic>>(
+          (r) => r['songs_with_artists'] as Map<String, dynamic>,
+        )
+        .toList();
   }
 
   // ==================== LISTENING HISTORY ====================
 
   /// Lấy lịch sử nghe gần đây
-  Future<List<Map<String, dynamic>>> getRecentlyPlayed(String userId, {int limit = 20}) async {
+  Future<List<Map<String, dynamic>>> getRecentlyPlayed(
+    String userId, {
+    int limit = 20,
+  }) async {
     final response = await client
         .from('user_recently_played')
         .select()
@@ -436,18 +465,21 @@ class SupabaseService {
   }
 
   /// Lấy album nghe gần đây
-  Future<List<Map<String, dynamic>>> getRecentlyPlayedAlbums(String userId, {int limit = 10}) async {
+  Future<List<Map<String, dynamic>>> getRecentlyPlayedAlbums(
+    String userId, {
+    int limit = 10,
+  }) async {
     final response = await client
         .from('listening_history')
         .select('songs(album_songs(albums(*)))')
         .eq('user_id', userId)
         .order('listened_at', ascending: false)
         .limit(50);
-    
+
     // Extract unique albums
     final albumIds = <String>{};
     final albums = <Map<String, dynamic>>[];
-    
+
     for (final record in response) {
       final song = record['songs'];
       if (song != null && song['album_songs'] != null) {
@@ -462,7 +494,7 @@ class SupabaseService {
       }
       if (albums.length >= limit) break;
     }
-    
+
     return albums;
   }
 
@@ -470,7 +502,9 @@ class SupabaseService {
 
   /// Tìm kiếm tất cả (songs, artists, albums, playlists)
   /// Tìm kiếm theo title, artist name, album name, và cả genre name
-  Future<Map<String, List<Map<String, dynamic>>>> searchAll(String query) async {
+  Future<Map<String, List<Map<String, dynamic>>>> searchAll(
+    String query,
+  ) async {
     if (query.isEmpty) {
       return {'songs': [], 'artists': [], 'albums': [], 'playlists': []};
     }
@@ -484,11 +518,7 @@ class SupabaseService {
             .or('title.ilike.%$query%,artist_name.ilike.%$query%')
             .limit(20),
         // Search artists by name
-        client
-            .from('artists')
-            .select()
-            .ilike('name', '%$query%')
-            .limit(20),
+        client.from('artists').select().ilike('name', '%$query%').limit(20),
         // Search albums by name (using view)
         client
             .from('albums_with_artists')
@@ -512,7 +542,7 @@ class SupabaseService {
             .select('song_id, genres!inner(name, display_name)')
             .or('genres.name.ilike.%$query%,genres.display_name.ilike.%$query%')
             .limit(20);
-        
+
         // Get the song IDs that match genre
         final songIds = genreResponse.map((r) => r['song_id']).toSet().toList();
         if (songIds.isNotEmpty) {
@@ -548,7 +578,7 @@ class SupabaseService {
   }
 
   // ==================== REALTIME STREAMS ====================
-  
+
   /// Stream bài hát mới
   Stream<List<Map<String, dynamic>>> songsStream() {
     return client

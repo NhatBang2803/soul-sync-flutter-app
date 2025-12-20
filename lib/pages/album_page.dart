@@ -5,6 +5,7 @@ import '../services/audio_player_service.dart';
 import '../services/queue_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
+import '../components/add_to_playlist_dialog.dart';
 
 class AlbumPage extends StatefulWidget {
   final String albumId;
@@ -224,7 +225,10 @@ class _AlbumPageState extends State<AlbumPage> {
               // Privacy status (only show for owner)
               if (!_album!.isPublic)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(4),
@@ -232,7 +236,11 @@ class _AlbumPageState extends State<AlbumPage> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.lock, size: 14, color: AppColors.textSecondary),
+                      Icon(
+                        Icons.lock,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Riêng tư',
@@ -373,6 +381,13 @@ class _AlbumPageState extends State<AlbumPage> {
                 ],
               ),
             ),
+            // Add to playlist button
+            AddToPlaylistButton(
+              songId: song.id,
+              songTitle: song.title,
+              size: 26,
+            ),
+            const SizedBox(width: 8),
             // Duration
             Text(
               song.formattedDuration,
@@ -452,14 +467,20 @@ class _AlbumPageState extends State<AlbumPage> {
                         width: 140,
                         height: 140,
                         color: AppColors.surface,
-                        child: const Icon(Icons.album, color: AppColors.textMuted),
+                        child: const Icon(
+                          Icons.album,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     )
                   : Container(
                       width: 140,
                       height: 140,
                       color: AppColors.surface,
-                      child: const Icon(Icons.album, color: AppColors.textMuted),
+                      child: const Icon(
+                        Icons.album,
+                        color: AppColors.textMuted,
+                      ),
                     ),
             ),
             const SizedBox(height: 8),

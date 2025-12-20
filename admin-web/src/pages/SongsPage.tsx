@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
-import { Music, Plus, Pencil, Trash2, Search, Loader2, Clock, Play, Mic2 } from 'lucide-react'
+import { Music, Plus, Pencil, Trash2, Search, Loader2, Clock, Play, Mic2, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -35,8 +35,8 @@ import {
     TableRow,
 } from '@/components/ui/table'
 
-import { songService, artistService } from '@/services'
-import type { Song, Artist } from '@/schemas'
+import { songService, artistService, genreService } from '@/services'
+import type { Song, Artist, Genre } from '@/schemas'
 
 interface SongFormData {
     title: string
@@ -57,12 +57,14 @@ export default function SongsPage() {
     const [songs, setSongs] = useState<Song[]>([])
     const [filteredSongs, setFilteredSongs] = useState<Song[]>([])
     const [artists, setArtists] = useState<Artist[]>([])
+    const [genres, setGenres] = useState<Genre[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [dialogOpen, setDialogOpen] = useState(false)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [selectedSong, setSelectedSong] = useState<Song | null>(null)
     const [selectedArtistIds, setSelectedArtistIds] = useState<string[]>([])
+    const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>([])
     const [saving, setSaving] = useState(false)
 
     const form = useForm<SongFormData>({
@@ -82,15 +84,24 @@ export default function SongsPage() {
         avatar: artist.image_url || undefined,
     }))
 
+    // Convert genres to options for MultiSelect
+    const genreOptions: Option[] = genres.map((genre) => ({
+        value: genre.id!,
+        label: genre.display_name,
+        color: genre.color || '#6366F1',
+    }))
+
     const loadData = useCallback(async () => {
         try {
-            const [songsData, artistsData] = await Promise.all([
+            const [songsData, artistsData, genresData] = await Promise.all([
                 songService.getAll(),
                 artistService.getAll(),
+                genreService.getAll(),
             ])
             setSongs(songsData)
             setFilteredSongs(songsData)
             setArtists(artistsData)
+            setGenres(genresData)
         } catch (error) {
             toast.error('Không thể tải dữ liệu')
             console.error(error)
@@ -120,6 +131,7 @@ export default function SongsPage() {
     const openCreateDialog = () => {
         setSelectedSong(null)
         setSelectedArtistIds([])
+        setSelectedGenreIds([])
         form.reset({
             title: '',
             audio_url: '',
@@ -140,13 +152,18 @@ export default function SongsPage() {
             play_count: song.play_count || 0,
         })
 
-        // Load existing artists for this song
+        // Load existing artists and genres for this song
         try {
-            const songArtists = await songService.getArtists(song.id!)
+            const [songArtists, songGenres] = await Promise.all([
+                songService.getArtists(song.id!),
+                songService.getGenres(song.id!),
+            ])
             setSelectedArtistIds(songArtists?.map((sa) => sa.artist_id) || [])
+            setSelectedGenreIds(songGenres?.map((sg) => sg.genre_id) || [])
         } catch (error) {
-            console.error('Failed to load song artists:', error)
+            console.error('Failed to load song artists/genres:', error)
             setSelectedArtistIds([])
+            setSelectedGenreIds([])
         }
 
         setDialogOpen(true)
@@ -172,11 +189,11 @@ export default function SongsPage() {
                 toast.success('Thêm bài hát thành công')
             }
 
-            // Update artists for this song
-            if (selectedArtistIds.length >= 0) { // Allow clearing artists if needed, changed > 0 to >= 0 or logic handled by setArtists
-                // Actually setArtists handles deletion. If array empty, it deletes all. so logic stands.
-                await songService.setArtists(songId, selectedArtistIds)
-            }
+            // Update artists and genres for this song
+            await Promise.all([
+                songService.setArtists(songId, selectedArtistIds),
+                songService.setGenres(songId, selectedGenreIds),
+            ])
 
             setDialogOpen(false)
             loadData()
@@ -371,6 +388,23 @@ export default function SongsPage() {
                             />
                             <p className="text-xs text-[hsl(var(--muted-foreground))]">
                                 Có thể chọn nhiều ca sĩ cho một bài hát
+                            </p>
+                        </div>
+
+                        {/* Genre Selection */}
+                        <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                                <Tag className="h-4 w-4" />
+                                Thể loại
+                            </Label>
+                            <MultiSelect
+                                options={genreOptions}
+                                value={selectedGenreIds}
+                                onChange={setSelectedGenreIds}
+                                placeholder="Chọn một hoặc nhiều thể loại..."
+                            />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                Có thể chọn nhiều thể loại cho một bài hát
                             </p>
                         </div>
 

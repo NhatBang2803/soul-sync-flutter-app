@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
+import 'components/add_to_playlist_dialog.dart';
 import 'now_playing_page.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
 import 'services/queue_service.dart';
+import 'services/auth_service.dart';
 import 'models/models.dart';
 import 'core/core.dart';
 import 'pages/artist_page.dart';
 
 class HomePage extends StatefulWidget {
   final Function(int)? onTabChanged;
-  
+
   const HomePage({super.key, this.onTabChanged});
 
   @override
@@ -22,7 +24,8 @@ class _HomePageState extends State<HomePage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioService = AudioPlayerService();
   final QueueService _queueService = QueueService();
-  
+  final AuthService _authService = AuthService();
+
   List<Song> _songs = [];
   List<Genre> _genres = [];
   Map<String, List<Song>> _rankingsByGenre = {};
@@ -45,7 +48,7 @@ class _HomePageState extends State<HomePage> {
         _isLoading = true;
         _error = null;
       });
-      
+
       // Load songs (required)
       List<Map<String, dynamic>> songsData = [];
       try {
@@ -82,16 +85,20 @@ class _HomePageState extends State<HomePage> {
       } catch (e) {
         print('Error loading new releases: $e');
       }
-      
+
       if (mounted) {
         final genres = genresData.map((json) => Genre.fromJson(json)).toList();
-        
+
         // Load song rankings for each genre
         final rankingsMap = <String, List<Song>>{};
         for (final genre in genres.take(4)) {
           try {
-            final rankings = await _supabaseService.getWeeklySongRankingByGenre(genre.name);
-            rankingsMap[genre.name] = rankings.map((json) => Song.fromJson(json)).toList();
+            final rankings = await _supabaseService.getWeeklySongRankingByGenre(
+              genre.name,
+            );
+            rankingsMap[genre.name] = rankings
+                .map((json) => Song.fromJson(json))
+                .toList();
           } catch (e) {
             rankingsMap[genre.name] = [];
           }
@@ -101,8 +108,12 @@ class _HomePageState extends State<HomePage> {
           _songs = songsData.map((json) => Song.fromJson(json)).toList();
           _genres = genres;
           _rankingsByGenre = rankingsMap;
-          _topArtists = artistsData.map((json) => Artist.fromJson(json)).toList();
-          _newReleases = releasesData.map((json) => Song.fromJson(json)).toList();
+          _topArtists = artistsData
+              .map((json) => Artist.fromJson(json))
+              .toList();
+          _newReleases = releasesData
+              .map((json) => Song.fromJson(json))
+              .toList();
           _isLoading = false;
         });
       }
@@ -125,8 +136,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _scrollListener() {
-    if (_scrollController.position.pixels <= 0 && 
-        _scrollController.position.pixels == _scrollController.position.minScrollExtent) {
+    if (_scrollController.position.pixels <= 0 &&
+        _scrollController.position.pixels ==
+            _scrollController.position.minScrollExtent) {
       _resetPage();
     }
   }
@@ -146,13 +158,11 @@ class _HomePageState extends State<HomePage> {
     _queueService.replaceQueue(playlist, startIndex: index);
     final playerPlaylist = playlist.map((s) => s.toPlayerFormat()).toList();
     await _audioService.setPlaylist(playerPlaylist, index);
-    
+
     if (mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => const NowPlayingPage(),
-        ),
+        MaterialPageRoute(builder: (context) => const NowPlayingPage()),
       );
     }
   }
@@ -231,7 +241,11 @@ class _HomePageState extends State<HomePage> {
                 backgroundColor: AppColors.surface,
                 backgroundImage: const AssetImage('assets/images/ellipse1.png'),
                 onBackgroundImageError: (exception, stackTrace) {},
-                child: const Icon(Icons.person, size: 16, color: AppColors.textPrimary),
+                child: const Icon(
+                  Icons.person,
+                  size: 16,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
           ),
@@ -259,28 +273,22 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-          // Notification icon with badge
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                color: AppColors.textPrimary,
-                iconSize: 28,
-                onPressed: () {},
+          // Create Playlist icon
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: AppColors.primaryGradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.add_rounded),
+              color: Colors.black,
+              iconSize: 26,
+              onPressed: () => _showCreatePlaylistDialog(),
+            ),
           ),
         ],
       ),
@@ -393,7 +401,9 @@ class _HomePageState extends State<HomePage> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => ArtistPage(artistId: artist.id)),
+          MaterialPageRoute(
+            builder: (context) => ArtistPage(artistId: artist.id),
+          ),
         );
       },
       child: Container(
@@ -406,11 +416,15 @@ class _HomePageState extends State<HomePage> {
                 CircleAvatar(
                   radius: 45,
                   backgroundColor: AppColors.surface,
-                  backgroundImage: artist.imageUrl != null 
-                      ? NetworkImage(artist.imageUrl!) 
+                  backgroundImage: artist.imageUrl != null
+                      ? NetworkImage(artist.imageUrl!)
                       : null,
                   child: artist.imageUrl == null
-                      ? const Icon(Icons.person, size: 40, color: AppColors.textMuted)
+                      ? const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: AppColors.textMuted,
+                        )
                       : null,
                 ),
                 // Rank badge
@@ -522,7 +536,10 @@ class _HomePageState extends State<HomePage> {
                   top: 8,
                   left: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(12),
@@ -535,6 +552,16 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                  ),
+                ),
+                // Add to playlist button
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: AddToPlaylistButton(
+                    songId: song.id,
+                    songTitle: song.title,
+                    size: 28,
                   ),
                 ),
               ],
@@ -569,7 +596,7 @@ class _HomePageState extends State<HomePage> {
 
   List<Widget> _buildGenreRankings() {
     final widgets = <Widget>[];
-    
+
     for (final genre in _genres.take(4)) {
       final songs = _rankingsByGenre[genre.name] ?? [];
       if (songs.isEmpty) continue;
@@ -651,14 +678,20 @@ class _HomePageState extends State<HomePage> {
                         width: 48,
                         height: 48,
                         color: AppColors.surface,
-                        child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                        child: const Icon(
+                          Icons.music_note,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     )
                   : Container(
                       width: 48,
                       height: 48,
                       color: AppColors.surface,
-                      child: const Icon(Icons.music_note, color: AppColors.textMuted),
+                      child: const Icon(
+                        Icons.music_note,
+                        color: AppColors.textMuted,
+                      ),
                     ),
             ),
             const SizedBox(width: 12),
@@ -689,13 +722,19 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
+            // Add to playlist button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: AddToPlaylistButton(
+                songId: song.id,
+                songTitle: song.title,
+                size: 26,
+              ),
+            ),
             // Play count
             Text(
               '${song.playCount}',
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
           ],
         ),
@@ -732,10 +771,7 @@ class _HomePageState extends State<HomePage> {
     if (_error != null) {
       return Padding(
         padding: const EdgeInsets.all(20.0),
-        child: AppErrorState(
-          message: _error!,
-          onRetry: _loadData,
-        ),
+        child: AppErrorState(message: _error!, onRetry: _loadData),
       );
     }
 
@@ -760,6 +796,272 @@ class _HomePageState extends State<HomePage> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         );
       }).toList(),
+    );
+  }
+
+  // ==================== CREATE PLAYLIST DIALOG ====================
+
+  void _showCreatePlaylistDialog() {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    bool isPublic = true;
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Row(
+                children: [
+                  Icon(
+                    Icons.playlist_add_rounded,
+                    color: AppColors.primary,
+                    size: 28,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Tạo Playlist Mới',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Playlist name input
+                    TextField(
+                      controller: nameController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Tên playlist',
+                        hintStyle: TextStyle(color: Colors.grey[500]),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                            width: 2,
+                          ),
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.music_note,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Description input
+                    TextField(
+                      controller: descriptionController,
+                      style: const TextStyle(color: Colors.white),
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Mô tả (không bắt buộc)',
+                        hintStyle: TextStyle(color: Colors.grey[500]),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                            width: 2,
+                          ),
+                        ),
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.only(bottom: 40),
+                          child: Icon(
+                            Icons.description_outlined,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Public/Private toggle
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                isPublic ? Icons.public : Icons.lock,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                isPublic ? 'Công khai' : 'Riêng tư',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: isPublic,
+                            onChanged: (value) {
+                              setDialogState(() => isPublic = value);
+                            },
+                            activeColor: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Hủy', style: TextStyle(color: Colors.grey[400])),
+                ),
+                GestureDetector(
+                  onTap: isLoading
+                      ? null
+                      : () async {
+                          if (nameController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Vui lòng nhập tên playlist',
+                                ),
+                                backgroundColor: Colors.red[700],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          final userId = _authService.currentUserId;
+                          if (userId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Vui lòng đăng nhập để tạo playlist',
+                                ),
+                                backgroundColor: Colors.red[700],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isLoading = true);
+
+                          try {
+                            await _supabaseService.createPlaylist(
+                              name: nameController.text.trim(),
+                              description:
+                                  descriptionController.text.trim().isNotEmpty
+                                  ? descriptionController.text.trim()
+                                  : null,
+                              ownerId: userId,
+                              isPublic: isPublic,
+                            );
+
+                            if (mounted) {
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Đã tạo playlist thành công!',
+                                  ),
+                                  backgroundColor: Colors.green[700],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() => isLoading = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Lỗi tạo playlist: $e'),
+                                  backgroundColor: Colors.red[700],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: AppColors.primaryGradient,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.black,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Tạo',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

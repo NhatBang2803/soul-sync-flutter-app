@@ -79,10 +79,7 @@ class AuthService {
       final response = await _client.auth.signUp(
         email: email,
         password: password,
-        data: {
-          'username': username,
-          'display_name': username,
-        },
+        data: {'username': username, 'display_name': username},
       );
 
       if (response.user == null) {
@@ -95,12 +92,14 @@ class AuthService {
         'username': username,
         'email': email,
         'display_name': username,
+        'auth_method': 'local',
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       });
 
       return AuthResult.success(
-        message: 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.',
+        message:
+            'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.',
       );
     } on AuthException catch (e) {
       return AuthResult.failure(_mapAuthError(e.message));
@@ -185,6 +184,45 @@ class AuthService {
     }
   }
 
+  /// Tạo hoặc cập nhật user profile sau OAuth login
+  Future<void> ensureUserProfile() async {
+    final authUser = currentAuthUser;
+    if (authUser == null) return;
+
+    try {
+      // Check if user profile exists
+      final existing = await _client
+          .from('users')
+          .select('id')
+          .eq('id', authUser.id)
+          .maybeSingle();
+
+      if (existing == null) {
+        // Create new user profile for OAuth user
+        final email = authUser.email ?? '';
+        final displayName =
+            authUser.userMetadata?['full_name'] ??
+            authUser.userMetadata?['name'] ??
+            email.split('@').first;
+        final avatarUrl =
+            authUser.userMetadata?['avatar_url'] ??
+            authUser.userMetadata?['picture'];
+
+        await _client.from('users').insert({
+          'id': authUser.id,
+          'email': email,
+          'display_name': displayName,
+          'avatar_url': avatarUrl,
+          'auth_method': 'google',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+    } catch (e) {
+      print('Error ensuring user profile: $e');
+    }
+  }
+
   // ==================== PASSWORD RESET ====================
 
   /// Gửi email reset password
@@ -204,7 +242,8 @@ class AuthService {
       );
 
       return AuthResult.success(
-        message: 'Email đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra hộp thư.',
+        message:
+            'Email đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra hộp thư.',
       );
     } on AuthException catch (e) {
       return AuthResult.failure(_mapAuthError(e.message));
@@ -220,11 +259,11 @@ class AuthService {
         return AuthResult.failure('Mật khẩu phải có ít nhất 6 ký tự');
       }
 
-      await _client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
 
-      return AuthResult.success(message: 'Mật khẩu đã được cập nhật thành công!');
+      return AuthResult.success(
+        message: 'Mật khẩu đã được cập nhật thành công!',
+      );
     } on AuthException catch (e) {
       return AuthResult.failure(_mapAuthError(e.message));
     } catch (e) {
@@ -300,7 +339,10 @@ class AuthService {
       await _client.from('users').update(updates).eq('id', userId);
 
       final updatedUser = await getUserProfile(userId);
-      return AuthResult.success(user: updatedUser, message: 'Cập nhật thành công!');
+      return AuthResult.success(
+        user: updatedUser,
+        message: 'Cập nhật thành công!',
+      );
     } catch (e) {
       return AuthResult.failure('Cập nhật thất bại: ${e.toString()}');
     }
@@ -314,7 +356,7 @@ class AuthService {
 
   String _mapAuthError(String message) {
     final lowerMessage = message.toLowerCase();
-    
+
     if (lowerMessage.contains('invalid login credentials')) {
       return 'Email hoặc mật khẩu không đúng';
     }
@@ -330,7 +372,7 @@ class AuthService {
     if (lowerMessage.contains('rate limit')) {
       return 'Quá nhiều yêu cầu. Vui lòng thử lại sau.';
     }
-    
+
     return message;
   }
 }

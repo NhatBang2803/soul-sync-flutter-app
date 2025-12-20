@@ -347,6 +347,16 @@ export const userService = {
         return data as User
     },
 
+    async create(user: Omit<User, 'id' | 'created_at'>) {
+        const { data, error } = await supabase
+            .from('users')
+            .insert(user)
+            .select()
+            .single()
+        if (error) throw error
+        return data as User
+    },
+
     async update(id: string, user: Partial<User>) {
         const { data, error } = await supabase
             .from('users')

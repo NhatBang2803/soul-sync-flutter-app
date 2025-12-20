@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
+import 'components/add_to_playlist_dialog.dart';
 import 'models/models.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
@@ -13,7 +14,7 @@ import 'pages/playlist_page.dart';
 
 class SearchPage extends StatefulWidget {
   final Function(int)? onTabChanged;
-  
+
   const SearchPage({super.key, this.onTabChanged});
 
   @override
@@ -25,7 +26,7 @@ class _SearchPageState extends State<SearchPage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
   final QueueService _queueService = QueueService();
-  
+
   Timer? _debounceTimer;
   bool _isSearching = false;
   bool _hasSearched = false;
@@ -37,7 +38,13 @@ class _SearchPageState extends State<SearchPage> {
   List<Playlist> _playlistResults = [];
 
   int _selectedCategoryIndex = 0;
-  final List<String> _categories = ['Tất cả', 'Bài hát', 'Nghệ sĩ', 'Album', 'Playlist'];
+  final List<String> _categories = [
+    'Tất cả',
+    'Bài hát',
+    'Nghệ sĩ',
+    'Album',
+    'Playlist',
+  ];
 
   @override
   void initState() {
@@ -149,7 +156,9 @@ class _SearchPageState extends State<SearchPage> {
             _buildSearchHeader(),
             if (_hasSearched) _buildCategoryTabs(),
             Expanded(
-              child: _hasSearched ? _buildSearchResults() : _buildBrowseContent(),
+              child: _hasSearched
+                  ? _buildSearchResults()
+                  : _buildBrowseContent(),
             ),
           ],
         ),
@@ -197,7 +206,10 @@ class _SearchPageState extends State<SearchPage> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 2,
+                ),
               ),
             ),
           ),
@@ -232,7 +244,9 @@ class _SearchPageState extends State<SearchPage> {
                   _categories[index],
                   style: TextStyle(
                     color: isSelected ? Colors.white : AppColors.textSecondary,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -280,7 +294,8 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   bool _shouldShowCategory(int categoryIndex) {
-    return _selectedCategoryIndex == 0 || _selectedCategoryIndex == categoryIndex;
+    return _selectedCategoryIndex == 0 ||
+        _selectedCategoryIndex == categoryIndex;
   }
 
   Widget _buildSongsSection() {
@@ -314,7 +329,8 @@ class _SearchPageState extends State<SearchPage> {
                 width: 48,
                 height: 48,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildDefaultCover(Icons.music_note),
+                errorBuilder: (_, __, ___) =>
+                    _buildDefaultCover(Icons.music_note),
               )
             : _buildDefaultCover(Icons.music_note),
       ),
@@ -333,9 +349,19 @@ class _SearchPageState extends State<SearchPage> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.play_circle_outline, color: AppColors.primary),
-        onPressed: () => _onSongTap(song),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AddToPlaylistButton(songId: song.id, songTitle: song.title, size: 26),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(
+              Icons.play_circle_outline,
+              color: AppColors.primary,
+            ),
+            onPressed: () => _onSongTap(song),
+          ),
+        ],
       ),
       onTap: () => _onSongTap(song),
     );
@@ -375,7 +401,9 @@ class _SearchPageState extends State<SearchPage> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => ArtistPage(artistId: artist.id)),
+          MaterialPageRoute(
+            builder: (context) => ArtistPage(artistId: artist.id),
+          ),
         );
       },
       child: Container(
@@ -386,11 +414,15 @@ class _SearchPageState extends State<SearchPage> {
             CircleAvatar(
               radius: 35,
               backgroundColor: AppColors.surface,
-              backgroundImage: artist.imageUrl != null 
-                  ? NetworkImage(artist.imageUrl!) 
+              backgroundImage: artist.imageUrl != null
+                  ? NetworkImage(artist.imageUrl!)
                   : null,
               child: artist.imageUrl == null
-                  ? const Icon(Icons.person, size: 30, color: AppColors.textMuted)
+                  ? const Icon(
+                      Icons.person,
+                      size: 30,
+                      color: AppColors.textMuted,
+                    )
                   : null,
             ),
             const SizedBox(height: 8),
@@ -501,7 +533,8 @@ class _SearchPageState extends State<SearchPage> {
                 width: 48,
                 height: 48,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildDefaultCover(Icons.queue_music),
+                errorBuilder: (_, __, ___) =>
+                    _buildDefaultCover(Icons.queue_music),
               )
             : _buildDefaultCover(Icons.queue_music),
       ),
@@ -521,7 +554,9 @@ class _SearchPageState extends State<SearchPage> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => PlaylistPage(playlistId: playlist.id)),
+          MaterialPageRoute(
+            builder: (context) => PlaylistPage(playlistId: playlist.id),
+          ),
         );
       },
     );
@@ -539,14 +574,34 @@ class _SearchPageState extends State<SearchPage> {
   Widget _buildBrowseContent() {
     // Categories for browsing when not searching
     final browseCategories = [
-      {'name': 'Pop Việt Nam', 'color': const Color(0xFFE91E63), 'icon': Icons.favorite},
-      {'name': 'Hip-Hop', 'color': const Color(0xFF9C27B0), 'icon': Icons.headphones},
-      {'name': 'Indie', 'color': const Color(0xFF673AB7), 'icon': Icons.music_note},
+      {
+        'name': 'Pop Việt Nam',
+        'color': const Color(0xFFE91E63),
+        'icon': Icons.favorite,
+      },
+      {
+        'name': 'Hip-Hop',
+        'color': const Color(0xFF9C27B0),
+        'icon': Icons.headphones,
+      },
+      {
+        'name': 'Indie',
+        'color': const Color(0xFF673AB7),
+        'icon': Icons.music_note,
+      },
       {'name': 'Ballad', 'color': const Color(0xFF3F51B5), 'icon': Icons.piano},
       {'name': 'EDM', 'color': const Color(0xFF00BCD4), 'icon': Icons.speaker},
       {'name': 'R&B', 'color': const Color(0xFFFF5722), 'icon': Icons.album},
-      {'name': 'Rock', 'color': const Color(0xFF795548), 'icon': Icons.electric_bolt},
-      {'name': 'Jazz', 'color': const Color(0xFF607D8B), 'icon': Icons.nightlife},
+      {
+        'name': 'Rock',
+        'color': const Color(0xFF795548),
+        'icon': Icons.electric_bolt,
+      },
+      {
+        'name': 'Jazz',
+        'color': const Color(0xFF607D8B),
+        'icon': Icons.nightlife,
+      },
     ];
 
     return SingleChildScrollView(
@@ -604,11 +659,7 @@ class _SearchPageState extends State<SearchPage> {
             Positioned(
               right: -10,
               bottom: -10,
-              child: Icon(
-                icon,
-                size: 60,
-                color: Colors.white.withOpacity(0.2),
-              ),
+              child: Icon(icon, size: 60, color: Colors.white.withOpacity(0.2)),
             ),
             Text(
               name,

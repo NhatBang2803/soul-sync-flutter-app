@@ -13,25 +13,26 @@ import 'profile_page.dart';
 import 'now_playing_page.dart';
 import 'admin_seed_page.dart';
 import 'services/audio_player_service.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize JustAudioMediaKit for Linux support
   JustAudioMediaKit.ensureInitialized();
-  
+
   // Load environment variables
   await dotenv.load(fileName: '.env');
-  
+
   // Initialize Supabase
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     anonKey: AppConfig.supabaseAnonKey,
   );
-  
+
   // Sign out to force login every time (remove this line to keep sessions)
   await Supabase.instance.client.auth.signOut();
-  
+
   runApp(const MyApp());
 }
 
@@ -69,11 +70,17 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  final _authService = AuthService();
+
   @override
   void initState() {
     super.initState();
     // Listen for auth state changes
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      // When user signs in (including OAuth), ensure profile exists
+      if (data.event == AuthChangeEvent.signedIn) {
+        await _authService.ensureUserProfile();
+      }
       if (mounted) {
         setState(() {});
       }
@@ -83,12 +90,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
-    
+
     // Only show main screen if logged in
     if (session != null) {
       return const MainScreen();
     }
-    
+
     // Show login page
     return const LoginScreen();
   }
@@ -105,9 +112,14 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
+
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   String? _errorMessage;
   bool _isSignUpMode = false;
 
@@ -115,6 +127,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _usernameController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -149,16 +163,32 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signUp() async {
+    final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Vui lòng nhập email và mật khẩu');
+    // Validate all fields
+    if (username.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      setState(() => _errorMessage = 'Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    if (username.length < 3) {
+      setState(() => _errorMessage = 'Username phải có ít nhất 3 ký tự');
       return;
     }
 
     if (password.length < 6) {
       setState(() => _errorMessage = 'Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() => _errorMessage = 'Mật khẩu xác nhận không khớp');
       return;
     }
 
@@ -168,16 +198,25 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await Supabase.instance.client.auth.signUp(
+      final result = await _authService.signUp(
+        username: username,
         email: email,
         password: password,
       );
-      setState(() {
-        _errorMessage = 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận.';
-        _isSignUpMode = false;
-      });
-    } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+
+      if (result.success) {
+        setState(() {
+          _errorMessage =
+              result.message ??
+              'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận.';
+          _isSignUpMode = false;
+          // Clear form
+          _usernameController.clear();
+          _confirmPasswordController.clear();
+        });
+      } else {
+        setState(() => _errorMessage = result.message);
+      }
     } catch (e) {
       setState(() => _errorMessage = 'Đã xảy ra lỗi: $e');
     } finally {
@@ -196,7 +235,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     // Google OAuth doesn't work well on desktop due to deep link issues
     if (_isDesktop) {
-      setState(() => _errorMessage = 'Đăng nhập Google chỉ khả dụng trên điện thoại. Vui lòng sử dụng email/mật khẩu.');
+      setState(
+        () => _errorMessage =
+            'Đăng nhập Google chỉ khả dụng trên điện thoại. Vui lòng sử dụng email/mật khẩu.',
+      );
       return;
     }
 
@@ -229,11 +271,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0D0D0D),
-              Color(0xFF1A1A2E),
-              Color(0xFF16213E),
-            ],
+            colors: [Color(0xFF0D0D0D), Color(0xFF1A1A2E), Color(0xFF16213E)],
           ),
         ),
         child: SafeArea(
@@ -260,7 +298,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.music_note, size: 50, color: Colors.white),
+                    child: const Icon(
+                      Icons.music_note,
+                      size: 50,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   const Text(
@@ -282,7 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  
+
                   // Frosted glass card
                   Container(
                     padding: const EdgeInsets.all(24),
@@ -313,14 +355,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        
+
                         // Error message
                         if (_errorMessage != null)
                           Container(
                             padding: const EdgeInsets.all(12),
                             margin: const EdgeInsets.only(bottom: 16),
                             decoration: BoxDecoration(
-                              color: _errorMessage!.contains('thành công') 
+                              color: _errorMessage!.contains('thành công')
                                   ? const Color(0xFF23DD5B).withAlpha(30)
                                   : Colors.red.withAlpha(30),
                               borderRadius: BorderRadius.circular(12),
@@ -346,8 +388,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   child: Text(
                                     _errorMessage!,
                                     style: TextStyle(
-                                      color: _errorMessage!.contains('thành công') 
-                                          ? const Color(0xFF23DD5B) 
+                                      color:
+                                          _errorMessage!.contains('thành công')
+                                          ? const Color(0xFF23DD5B)
                                           : Colors.red,
                                       fontSize: 13,
                                     ),
@@ -356,7 +399,17 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                           ),
-                        
+
+                        // Username field (only for signup)
+                        if (_isSignUpMode) ...[
+                          _buildTextField(
+                            controller: _usernameController,
+                            hint: 'Username',
+                            icon: Icons.person_outline,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
                         // Email field
                         _buildTextField(
                           controller: _emailController,
@@ -365,7 +418,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                         ),
                         const SizedBox(height: 16),
-                        
+
                         // Password field
                         _buildTextField(
                           controller: _passwordController,
@@ -374,20 +427,50 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: _obscurePassword,
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              _obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                               color: Colors.grey[500],
                               size: 20,
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                           ),
                         ),
+
+                        // Confirm password field (only for signup)
+                        if (_isSignUpMode) ...[
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _confirmPasswordController,
+                            hint: 'Xác nhận mật khẩu',
+                            icon: Icons.lock_outline,
+                            obscureText: _obscureConfirmPassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                color: Colors.grey[500],
+                                size: 20,
+                              ),
+                              onPressed: () => setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
-                        
+
                         // Main action button
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: _isLoading ? null : (_isSignUpMode ? _signUp : _signIn),
+                            onPressed: _isLoading
+                                ? null
+                                : (_isSignUpMode ? _signUp : _signIn),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF23DD5B),
                               foregroundColor: Colors.white,
@@ -408,53 +491,70 @@ class _LoginScreenState extends State<LoginScreen> {
                                   )
                                 : Text(
                                     _isSignUpMode ? 'Đăng ký' : 'Đăng nhập',
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                           ),
                         ),
-                        
+
                         // Only show Google sign-in on login mode
                         if (!_isSignUpMode) ...[
                           const SizedBox(height: 16),
-                          
+
                           // Divider
                           Row(
                             children: [
                               Expanded(child: Divider(color: Colors.grey[700])),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: Text(
                                   'hoặc',
-                                  style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
                               Expanded(child: Divider(color: Colors.grey[700])),
                             ],
                           ),
                           const SizedBox(height: 16),
-                          
+
                           // Google sign-in button
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed: _isGoogleLoading ? null : _signInWithGoogle,
+                              onPressed: _isGoogleLoading
+                                  ? null
+                                  : _signInWithGoogle,
                               icon: _isGoogleLoading
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : Image.network(
                                       'https://www.google.com/favicon.ico',
                                       width: 20,
                                       height: 20,
-                                      errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 24),
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.g_mobiledata,
+                                        size: 24,
+                                      ),
                                     ),
                               label: const Text('Đăng nhập với Google'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
                                 side: BorderSide(color: Colors.grey[600]!),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -462,15 +562,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ],
-                        
+
                         const SizedBox(height: 20),
-                        
+
                         // Toggle sign up / sign in
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              _isSignUpMode ? 'Đã có tài khoản?' : 'Chưa có tài khoản?',
+                              _isSignUpMode
+                                  ? 'Đã có tài khoản?'
+                                  : 'Chưa có tài khoản?',
                               style: TextStyle(color: Colors.grey[400]),
                             ),
                             TextButton(
@@ -532,7 +634,10 @@ class _LoginScreenState extends State<LoginScreen> {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFF23DD5B), width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -549,7 +654,7 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedTab = 0;
   bool _isPlaying = false;
   bool _showNowPlaying = false;
-  
+
   // Audio service for tracking current song
   final AudioPlayerService _audioService = AudioPlayerService();
   StreamSubscription? _playingSubscription;
@@ -568,7 +673,7 @@ class _MainScreenState extends State<MainScreen> {
         setState(() => _isPlaying = playing);
       }
     });
-    
+
     // Listen to player state to detect when song changes
     _playerStateSubscription = _audioService.playerStateStream.listen((_) {
       if (mounted) {
@@ -648,11 +753,7 @@ class _MainScreenState extends State<MainScreen> {
 
         // Now Playing Screen (Full Screen)
         if (_showNowPlaying)
-          Positioned.fill(
-            child: NowPlayingPage(
-              onClose: _closePlayer,
-            ),
-          ),
+          Positioned.fill(child: NowPlayingPage(onClose: _closePlayer)),
       ],
     );
   }
@@ -676,7 +777,8 @@ class MiniPlayerDynamic extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = song['songName'] ?? song['title'] ?? 'Unknown';
-    final artist = song['artistName'] ?? song['artist_name'] ?? 'Unknown Artist';
+    final artist =
+        song['artistName'] ?? song['artist_name'] ?? 'Unknown Artist';
     final coverUrl = song['coverUrl'] ?? song['cover_url'];
 
     return GestureDetector(
@@ -721,10 +823,7 @@ class MiniPlayerDynamic extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       artist,
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
