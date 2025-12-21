@@ -459,6 +459,19 @@ class SupabaseService {
 
   /// Like bài hát
   Future<void> likeSong(String userId, String songId) async {
+    // Kiểm tra đã like chưa để tránh duplicate key error
+    final existing = await client
+        .from('user_liked_songs')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('song_id', songId)
+        .maybeSingle();
+
+    if (existing != null) {
+      // Đã like rồi, không làm gì
+      return;
+    }
+
     await client.from('user_liked_songs').insert({
       'user_id': userId,
       'song_id': songId,
@@ -503,7 +516,20 @@ class SupabaseService {
 
   /// Like album
   Future<void> likeAlbum(String userId, String albumId) async {
-    await client.from('user_liked_albums').upsert({
+    // Kiểm tra đã like chưa để tránh lỗi
+    final existing = await client
+        .from('user_liked_albums')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('album_id', albumId)
+        .maybeSingle();
+
+    if (existing != null) {
+      // Đã like rồi, không làm gì
+      return;
+    }
+
+    await client.from('user_liked_albums').insert({
       'user_id': userId,
       'album_id': albumId,
       'liked_at': DateTime.now().toIso8601String(),
@@ -547,6 +573,45 @@ class SupabaseService {
         .order('listened_at', ascending: false)
         .limit(limit);
     return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Lấy lịch sử nghe đầy đủ (với thông tin bài hát)
+  Future<List<Map<String, dynamic>>> getListeningHistory(
+    String userId, {
+    int limit = 200,
+  }) async {
+    final response = await client
+        .from('listening_history')
+        .select('''
+          id,
+          listened_at,
+          duration_played,
+          completed,
+          songs_with_artists!inner(
+            id,
+            title,
+            duration,
+            audio_url,
+            cover_url,
+            play_count,
+            artist_name,
+            artist_ids,
+            artist_names
+          )
+        ''')
+        .eq('user_id', userId)
+        .order('listened_at', ascending: false)
+        .limit(limit);
+
+    return response.map<Map<String, dynamic>>((item) {
+      final song = item['songs_with_artists'] as Map<String, dynamic>;
+      return {
+        'listened_at': item['listened_at'],
+        'duration_played': item['duration_played'],
+        'completed': item['completed'],
+        'song': song,
+      };
+    }).toList();
   }
 
   /// Lấy album nghe gần đây

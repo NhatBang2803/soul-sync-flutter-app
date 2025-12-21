@@ -8,6 +8,7 @@ import 'core/core.dart';
 import 'pages/artist_page.dart';
 import 'pages/album_page.dart';
 import 'pages/playlist_page.dart';
+import 'pages/history_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -174,7 +175,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 8),
         Text(
-          user?.email ?? 'Chưa đăng nhập',
+          user?.email ?? (user != null ? 'Đã đăng nhập' : 'Chưa đăng nhập'),
           style: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
       ],
@@ -220,6 +221,10 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         _buildSectionHeader('Lịch sử nghe gần đây', () {
           // Navigate to full history
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const HistoryPage()),
+          );
         }),
         const SizedBox(height: 8),
         if (_recentlyPlayed.isEmpty)
@@ -231,7 +236,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           )
         else
-          ..._recentlyPlayed.take(5).map(_buildRecentlyPlayedItem),
+          ..._recentlyPlayed.take(3).map(_buildRecentlyPlayedItem),
       ],
     );
   }
@@ -268,7 +273,7 @@ class _ProfilePageState extends State<ProfilePage> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AddToPlaylistButton(songId: song.id, songTitle: song.title, size: 26),
+          AddToPlaylistButton(songId: song.id, songTitle: song.title, song: song, size: 26),
           const SizedBox(width: 12),
           Text(
             song.formattedDuration,
@@ -294,6 +299,13 @@ class _ProfilePageState extends State<ProfilePage> {
   // ==================== FOLLOWING ARTISTS (HORIZONTAL SLIDER) ====================
 
   Widget _buildFollowingArtistsSection() {
+    // Get up to 5 random artists from the list
+    List<Artist> displayArtists = [];
+    if (_followingArtists.isNotEmpty) {
+      final shuffled = List<Artist>.from(_followingArtists)..shuffle();
+      displayArtists = shuffled.take(5).toList();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -315,9 +327,9 @@ class _ProfilePageState extends State<ProfilePage> {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _followingArtists.length,
+              itemCount: displayArtists.length,
               itemBuilder: (context, index) {
-                return _buildArtistItem(_followingArtists[index]);
+                return _buildArtistItem(displayArtists[index]);
               },
             ),
           ),
@@ -340,15 +352,24 @@ class _ProfilePageState extends State<ProfilePage> {
         margin: const EdgeInsets.only(right: 12),
         child: Column(
           children: [
-            CircleAvatar(
-              radius: 45,
-              backgroundColor: Colors.grey[800],
-              backgroundImage: artist.imageUrl != null
-                  ? NetworkImage(artist.imageUrl!)
-                  : null,
-              child: artist.imageUrl == null
-                  ? const Icon(Icons.person, size: 40, color: Colors.white)
-                  : null,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 90,
+                height: 90,
+                color: Colors.grey[800],
+                child: artist.imageUrl != null
+                    ? Image.network(
+                        artist.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.person, size: 40, color: Colors.white),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -387,21 +408,76 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           )
         else
-          SizedBox(
-            height: 180,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _myPlaylists.length,
-              itemBuilder: (context, index) {
-                return _buildPlaylistItem(_myPlaylists[index]);
-              },
-            ),
-          ),
+          ..._myPlaylists.map(_buildPlaylistVerticalItem),
       ],
     );
   }
 
+  Widget _buildPlaylistVerticalItem(Playlist playlist) {
+    return ListTile(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PlaylistPage(playlistId: playlist.id),
+          ),
+        );
+      },
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: playlist.coverUrl != null
+            ? Image.network(
+                playlist.coverUrl!,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _buildDefaultPlaylistCoverSmall(),
+              )
+            : _buildDefaultPlaylistCoverSmall(),
+      ),
+      title: Text(
+        playlist.name,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w500,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Row(
+        children: [
+          Icon(
+            playlist.isPublic ? Icons.public : Icons.lock,
+            size: 12,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '${playlist.songCount} bài',
+            style: TextStyle(color: Colors.grey[400], fontSize: 12),
+          ),
+        ],
+      ),
+      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+    );
+  }
+
+  Widget _buildDefaultPlaylistCoverSmall() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF7E22CE), Color(0xFF9333EA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Icon(Icons.queue_music, size: 24, color: Colors.white70),
+    );
+  }
+
+  // Keep the old horizontal item for reference but not used
   Widget _buildPlaylistItem(Playlist playlist) {
     return GestureDetector(
       onTap: () {
@@ -501,7 +577,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _recentAlbums.length,
+              itemCount: _recentAlbums.take(7).length,
               itemBuilder: (context, index) {
                 return _buildAlbumItem(_recentAlbums[index]);
               },

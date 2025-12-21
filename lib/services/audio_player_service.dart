@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:just_audio/just_audio.dart';
 import 'queue_service.dart';
+import 'supabase_service.dart';
+import 'auth_service.dart';
 import '../models/song.dart';
 
 /// Service để quản lý phát nhạc
@@ -16,6 +18,11 @@ class AudioPlayerService {
 
   late final AudioPlayer _audioPlayer;
   final QueueService _queueService = QueueService();
+  final SupabaseService _supabaseService = SupabaseService();
+  final AuthService _authService = AuthService();
+
+  // Track which song was last recorded to avoid duplicates
+  String? _lastRecordedSongId;
 
   // Sleep timer
   Timer? _sleepTimer;
@@ -27,6 +34,7 @@ class AudioPlayerService {
   Stream<Duration> get positionStream => _audioPlayer.positionStream;
   Stream<Duration?> get durationStream => _audioPlayer.durationStream;
   Stream<bool> get playingStream => _audioPlayer.playingStream;
+
 
   // Current state - delegate to QueueService
   bool get isPlaying => _audioPlayer.playing;
@@ -104,6 +112,7 @@ class AudioPlayerService {
   Future<void> _loadAndPlay(Map<String, dynamic> song) async {
     try {
       String? audioUrl = song['audioUrl'] as String?;
+      final songId = song['id'] as String?;
 
       // Handle demo/fallback URLs
       if (audioUrl == null || audioUrl.isEmpty) {
@@ -112,6 +121,12 @@ class AudioPlayerService {
 
       await _audioPlayer.setUrl(audioUrl);
       await _audioPlayer.play();
+
+      // Record listening history and increment play count
+      if (songId != null && songId != _lastRecordedSongId) {
+        _lastRecordedSongId = songId;
+        _recordListeningAsync(songId);
+      }
     } catch (e) {
       print('Error loading audio: $e');
       // Try with demo URL on error
@@ -122,6 +137,24 @@ class AudioPlayerService {
         print('Error loading demo audio: $e2');
       }
     }
+  }
+
+  /// Record listening history asynchronously (don't block playback)
+  void _recordListeningAsync(String songId) {
+    Future(() async {
+      try {
+        final userId = _authService.currentUserId;
+        await _supabaseService.recordListening(
+          userId: userId,
+          songId: songId,
+          durationPlayed: 0,
+          completed: false,
+        );
+        print('Recorded listening for song: $songId');
+      } catch (e) {
+        print('Error recording listening: $e');
+      }
+    });
   }
 
   String _getDemoUrl() {

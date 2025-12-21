@@ -98,9 +98,25 @@ class _AlbumPageState extends State<AlbumPage> {
       }
       if (mounted) {
         setState(() => _isAlbumLiked = !_isAlbumLiked);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isAlbumLiked
+                ? 'Đã thêm album vào thư viện'
+                : 'Đã xóa album khỏi thư viện'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
-      // Handle error silently
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: Không thể ${_isAlbumLiked ? "bỏ thích" : "thích"} album. $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -435,6 +451,7 @@ class _AlbumPageState extends State<AlbumPage> {
             AddToPlaylistButton(
               songId: song.id,
               songTitle: song.title,
+              song: song,
               size: 26,
             ),
             const SizedBox(width: 8),

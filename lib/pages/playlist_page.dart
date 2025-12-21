@@ -450,6 +450,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
             AddToPlaylistButton(
               songId: song.id,
               songTitle: song.title,
+              song: song,
               size: 26,
             ),
             const SizedBox(width: 8),

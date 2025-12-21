@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/auth_service.dart';
+import '../services/queue_service.dart';
 import '../models/models.dart';
 import '../core/constants/app_colors.dart';
 
@@ -8,11 +9,13 @@ import '../core/constants/app_colors.dart';
 class AddToPlaylistDialog extends StatefulWidget {
   final String songId;
   final String songTitle;
+  final Song? song; // Optional full song object for queue operations
 
   const AddToPlaylistDialog({
     super.key,
     required this.songId,
     required this.songTitle,
+    this.song,
   });
 
   @override
@@ -22,14 +25,15 @@ class AddToPlaylistDialog extends StatefulWidget {
   static Future<void> show(
     BuildContext context,
     String songId,
-    String songTitle,
-  ) {
+    String songTitle, {
+    Song? song,
+  }) {
     return showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) =>
-          AddToPlaylistDialog(songId: songId, songTitle: songTitle),
+          AddToPlaylistDialog(songId: songId, songTitle: songTitle, song: song),
     );
   }
 }
@@ -37,6 +41,7 @@ class AddToPlaylistDialog extends StatefulWidget {
 class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   final SupabaseService _supabaseService = SupabaseService();
   final AuthService _authService = AuthService();
+  final QueueService _queueService = QueueService();
 
   List<Playlist> _playlists = [];
   bool _isLoading = true;
@@ -119,6 +124,44 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
         );
       }
     }
+  }
+
+  void _addToQueue() {
+    if (widget.song == null) return;
+    
+    _queueService.addToQueue(widget.song!);
+    Navigator.of(context).pop();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã thêm "${widget.songTitle}" vào hàng đợi'),
+        backgroundColor: Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _addToPlayNext() {
+    if (widget.song == null) return;
+    
+    _queueService.addToPlayNext(widget.song!);
+    Navigator.of(context).pop();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã thêm "${widget.songTitle}" để phát tiếp theo'),
+        backgroundColor: Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _showCreatePlaylistDialog() {
@@ -271,7 +314,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
             child: Column(
               children: [
                 const Text(
-                  'Thêm vào Playlist',
+                  'Thêm bài hát',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -289,6 +332,60 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
             ),
           ),
           const Divider(color: Colors.grey, height: 1),
+          
+          // Queue options (only show if song object is available)
+          if (widget.song != null) ...[
+            ListTile(
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.playlist_add,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              title: const Text(
+                'Thêm vào hàng đợi',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                'Phát sau các bài hiện tại',
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              ),
+              onTap: () => _addToQueue(),
+            ),
+            ListTile(
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.queue_music,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              title: const Text(
+                'Phát tiếp theo',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                'Phát ngay sau bài hiện tại',
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              ),
+              onTap: () => _addToPlayNext(),
+            ),
+            const Divider(color: Colors.grey, height: 1),
+          ],
+          
           // Create new playlist button
           ListTile(
             leading: Container(
@@ -432,19 +529,21 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
 class AddToPlaylistButton extends StatelessWidget {
   final String songId;
   final String songTitle;
+  final Song? song;
   final double size;
 
   const AddToPlaylistButton({
     super.key,
     required this.songId,
     required this.songTitle,
+    this.song,
     this.size = 28,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => AddToPlaylistDialog.show(context, songId, songTitle),
+      onTap: () => AddToPlaylistDialog.show(context, songId, songTitle, song: song),
       child: Container(
         width: size,
         height: size,

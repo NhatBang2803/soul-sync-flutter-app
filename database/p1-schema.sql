@@ -1,14 +1,17 @@
 -- =====================================================
--- Soul Sync Database - CLEAN SCHEMA
--- CẢNH BÁO: Script này sẽ XÓA TOÀN BỘ dữ liệu hiện tại!
--- Chạy trong Supabase SQL Editor
+-- Soul Sync Database - FILE 1: SCHEMA
+-- Mục đích: Tạo cấu trúc database (Tables, Indexes, Views, Functions)
+-- Thứ tự chạy: 1 (chạy đầu tiên)
+-- CẢNH BÁO: Script này sẽ XÓA TOÀN BỘ schema hiện tại!
 -- =====================================================
 
 -- =====================
--- BƯỚC 1: RESET SCHEMA
+-- PHẦN 1: RESET SCHEMA
 -- =====================
 DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
+
+-- Grant basic permissions
 GRANT ALL ON SCHEMA public TO postgres;
 GRANT ALL ON SCHEMA public TO public;
 GRANT ALL ON SCHEMA public TO anon;
@@ -16,7 +19,7 @@ GRANT ALL ON SCHEMA public TO authenticated;
 GRANT ALL ON SCHEMA public TO service_role;
 
 -- =====================
--- BƯỚC 2: TẠO BẢNG CHÍNH
+-- PHẦN 2: TẠO BẢNG CHÍNH
 -- =====================
 
 -- Users
@@ -26,8 +29,8 @@ CREATE TABLE users (
   username VARCHAR(50) UNIQUE,
   display_name VARCHAR(255),
   avatar_url TEXT,
-  password_hash TEXT,  -- bcrypt hash, NULL for OAuth users
-  auth_method VARCHAR(20) DEFAULT 'local' NOT NULL, -- 'local' or 'google'
+  password_hash TEXT,
+  auth_method VARCHAR(20) DEFAULT 'local' NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -67,7 +70,7 @@ CREATE TABLE albums (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Songs (KHÔNG có artist_id, album_id trực tiếp - dùng junction tables)
+-- Songs
 CREATE TABLE songs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -93,20 +96,20 @@ CREATE TABLE playlists (
 );
 
 -- =====================
--- BƯỚC 3: JUNCTION TABLES (Many-to-Many)
+-- PHẦN 3: JUNCTION TABLES (Many-to-Many)
 -- =====================
 
--- Song ↔ Artist (một bài có thể có nhiều ca sĩ)
+-- Song ↔ Artist
 CREATE TABLE song_artists (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   song_id UUID NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
   artist_id UUID NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
-  role VARCHAR(50) DEFAULT 'main', -- 'main', 'featuring', 'producer'
+  role VARCHAR(50) DEFAULT 'main',
   position INTEGER DEFAULT 0,
   UNIQUE(song_id, artist_id)
 );
 
--- Album ↔ Artist (album thuộc về artist nào)
+-- Album ↔ Artist
 CREATE TABLE album_artists (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   album_id UUID NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
@@ -114,7 +117,7 @@ CREATE TABLE album_artists (
   UNIQUE(album_id, artist_id)
 );
 
--- Album ↔ Song (một album có nhiều bài, một bài có thể trong nhiều album)
+-- Album ↔ Song
 CREATE TABLE album_songs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   album_id UUID NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
@@ -123,7 +126,7 @@ CREATE TABLE album_songs (
   UNIQUE(album_id, song_id)
 );
 
--- Song ↔ Genre (một bài có thể thuộc nhiều thể loại)
+-- Song ↔ Genre
 CREATE TABLE song_genres (
   song_id UUID NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
   genre_id UUID NOT NULL REFERENCES genres(id) ON DELETE CASCADE,
@@ -141,7 +144,7 @@ CREATE TABLE playlist_songs (
 );
 
 -- =====================
--- BƯỚC 4: USER INTERACTION TABLES
+-- PHẦN 4: USER INTERACTION TABLES
 -- =====================
 
 -- User follows artist
@@ -162,7 +165,7 @@ CREATE TABLE user_liked_songs (
   UNIQUE(user_id, song_id)
 );
 
--- User liked albums (liking an album does NOT mean liking all songs in it)
+-- User liked albums
 CREATE TABLE user_liked_albums (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -192,7 +195,7 @@ CREATE TABLE password_reset_tokens (
 );
 
 -- =====================
--- BƯỚC 5: INDEXES
+-- PHẦN 5: INDEXES
 -- =====================
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
@@ -209,6 +212,8 @@ CREATE INDEX idx_song_genres_genre ON song_genres(genre_id);
 CREATE INDEX idx_playlist_songs_playlist ON playlist_songs(playlist_id);
 CREATE INDEX idx_user_follows_user ON user_follows(user_id);
 CREATE INDEX idx_user_follows_artist ON user_follows(artist_id);
+CREATE INDEX idx_user_liked_songs_user ON user_liked_songs(user_id);
+CREATE INDEX idx_user_liked_songs_song ON user_liked_songs(song_id);
 CREATE INDEX idx_user_liked_albums_user ON user_liked_albums(user_id);
 CREATE INDEX idx_user_liked_albums_album ON user_liked_albums(album_id);
 CREATE INDEX idx_listening_history_user ON listening_history(user_id);
@@ -216,7 +221,7 @@ CREATE INDEX idx_listening_history_song ON listening_history(song_id);
 CREATE INDEX idx_listening_history_time ON listening_history(listened_at DESC);
 
 -- =====================
--- BƯỚC 6: VIEWS
+-- PHẦN 6: VIEWS
 -- =====================
 
 -- Songs with artists aggregated
@@ -316,52 +321,7 @@ GROUP BY s.id
 ORDER BY s.created_at DESC;
 
 -- =====================
--- BƯỚC 7: ROW LEVEL SECURITY
--- =====================
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE artists ENABLE ROW LEVEL SECURITY;
-ALTER TABLE albums ENABLE ROW LEVEL SECURITY;
-ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE genres ENABLE ROW LEVEL SECURITY;
-ALTER TABLE playlists ENABLE ROW LEVEL SECURITY;
-ALTER TABLE song_artists ENABLE ROW LEVEL SECURITY;
-ALTER TABLE album_artists ENABLE ROW LEVEL SECURITY;
-ALTER TABLE album_songs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE song_genres ENABLE ROW LEVEL SECURITY;
-ALTER TABLE playlist_songs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_follows ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_liked_songs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_liked_albums ENABLE ROW LEVEL SECURITY;
-ALTER TABLE listening_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
-
--- Public read policies (ai cũng đọc được)
-CREATE POLICY "Public read" ON users FOR SELECT USING (true);
-CREATE POLICY "Public read" ON artists FOR SELECT USING (true);
-CREATE POLICY "Public read" ON albums FOR SELECT USING (is_public = true);
-CREATE POLICY "Public read" ON songs FOR SELECT USING (true);
-CREATE POLICY "Public read" ON genres FOR SELECT USING (true);
-CREATE POLICY "Public read" ON song_artists FOR SELECT USING (true);
-CREATE POLICY "Public read" ON album_artists FOR SELECT USING (true);
-CREATE POLICY "Public read" ON album_songs FOR SELECT USING (true);
-CREATE POLICY "Public read" ON song_genres FOR SELECT USING (true);
-
--- Playlist policies
-CREATE POLICY "Read public playlists" ON playlists FOR SELECT USING (is_public = true OR owner_id = auth.uid());
-CREATE POLICY "Owner manages playlist" ON playlists FOR ALL USING (owner_id = auth.uid());
-CREATE POLICY "Read playlist songs" ON playlist_songs FOR SELECT USING (true);
-CREATE POLICY "Owner manages playlist songs" ON playlist_songs FOR ALL 
-  USING (playlist_id IN (SELECT id FROM playlists WHERE owner_id = auth.uid()));
-
--- User interaction policies
-CREATE POLICY "User manages follows" ON user_follows FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "User manages likes" ON user_liked_songs FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "User manages album likes" ON user_liked_albums FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "User manages history" ON listening_history FOR ALL USING (user_id = auth.uid() OR user_id IS NULL);
-CREATE POLICY "Read reset tokens" ON password_reset_tokens FOR SELECT USING (true);
-
--- =====================
--- BƯỚC 8: HELPER FUNCTIONS
+-- PHẦN 7: HELPER FUNCTIONS
 -- =====================
 
 -- Increment play count
@@ -387,7 +347,6 @@ BEGIN
   VALUES (p_user_id, p_song_id, p_duration, p_completed)
   RETURNING id INTO new_id;
   
-  -- Also increment play count
   PERFORM increment_play_count(p_song_id);
   
   RETURN new_id;
@@ -423,7 +382,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Update monthly listeners (for cron job)
+-- Update monthly listeners
 CREATE OR REPLACE FUNCTION update_monthly_listeners()
 RETURNS void AS $$
 BEGIN
@@ -438,105 +397,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- =====================
--- BƯỚC 9: SEED DATA (Dữ liệu mẫu)
--- =====================
-
--- Insert genres
-INSERT INTO genres (name, display_name, color) VALUES
-  ('ballad', 'Ballad', '#3B82F6'),
-  ('rap', 'Rap/Hip-hop', '#EF4444'),
-  ('pop', 'Pop', '#EC4899'),
-  ('rock', 'Rock', '#8B5CF6'),
-  ('edm', 'EDM', '#10B981'),
-  ('rnb', 'R&B', '#F59E0B'),
-  ('indie', 'Indie', '#6366F1'),
-  ('acoustic', 'Acoustic', '#84CC16'),
-  ('jazz', 'Jazz', '#F97316'),
-  ('classical', 'Classical', '#0EA5E9');
-
--- Insert sample artists
-INSERT INTO artists (id, name, image_url, followers, monthly_listeners, is_verified) VALUES
-  ('a1111111-1111-1111-1111-111111111111', 'HIEUTHUHAI', 'https://i.scdn.co/image/ab67616d0000b273a8f2d9a8ef2a6ab9e6b8f0e1', 2400000, 1800000, true),
-  ('a2222222-2222-2222-2222-222222222222', 'Sơn Tùng M-TP', 'https://i.scdn.co/image/ab67616d0000b273b8f2e9a8ef2a6ab9e6b8f0e2', 5500000, 3200000, true),
-  ('a3333333-3333-3333-3333-333333333333', 'Phương Mỹ Chi', 'https://i.scdn.co/image/ab67616d0000b273c8f2e9a8ef2a6ab9e6b8f0e3', 1200000, 800000, true),
-  ('a4444444-4444-4444-4444-444444444444', 'Đen Vâu', 'https://i.scdn.co/image/ab67616d0000b273d8f2e9a8ef2a6ab9e6b8f0e4', 3200000, 2100000, true),
-  ('a5555555-5555-5555-5555-555555555555', 'Hoàng Thùy Linh', 'https://i.scdn.co/image/ab67616d0000b273e8f2e9a8ef2a6ab9e6b8f0e5', 1800000, 950000, true);
-
--- Insert sample albums
-INSERT INTO albums (id, name, cover_url, release_year, song_count) VALUES
-  ('b1111111-1111-1111-1111-111111111111', 'Ai Cũng Phải Bắt Đầu', 'https://i.scdn.co/image/ab67616d0000b273a1', 2024, 10),
-  ('b2222222-2222-2222-2222-222222222222', 'M-TP Collection', 'https://i.scdn.co/image/ab67616d0000b273a2', 2023, 12),
-  ('b3333333-3333-3333-3333-333333333333', 'Lộng Lẫy Việt Nam', 'https://i.scdn.co/image/ab67616d0000b273a3', 2024, 8);
-
--- Album artists
-INSERT INTO album_artists (album_id, artist_id) VALUES
-  ('b1111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111'),
-  ('b2222222-2222-2222-2222-222222222222', 'a2222222-2222-2222-2222-222222222222'),
-  ('b3333333-3333-3333-3333-333333333333', 'a5555555-5555-5555-5555-555555555555');
-
--- Insert sample songs
-INSERT INTO songs (id, title, duration, cover_url, play_count, created_at) VALUES
-  ('c1111111-1111-1111-1111-111111111111', 'Ngủ Một Mình', 215, 'https://i.scdn.co/image/ab67616d0000b273s1', 5420000, NOW() - INTERVAL '2 days'),
-  ('c2222222-2222-2222-2222-222222222222', 'Lạc Trôi', 289, 'https://i.scdn.co/image/ab67616d0000b273s2', 89000000, NOW() - INTERVAL '30 days'),
-  ('c3333333-3333-3333-3333-333333333333', 'Đừng Làm Trái Tim Anh Đau', 245, 'https://i.scdn.co/image/ab67616d0000b273s3', 120000000, NOW() - INTERVAL '60 days'),
-  ('c4444444-4444-4444-4444-444444444444', 'Bước Qua Mùa Cô Đơn', 267, 'https://i.scdn.co/image/ab67616d0000b273s4', 35000000, NOW() - INTERVAL '15 days'),
-  ('c5555555-5555-5555-5555-555555555555', 'See Tình', 198, 'https://i.scdn.co/image/ab67616d0000b273s5', 250000000, NOW() - INTERVAL '5 days'),
-  ('c6666666-6666-6666-6666-666666666666', 'Waiting For You', 312, 'https://i.scdn.co/image/ab67616d0000b273s6', 78000000, NOW() - INTERVAL '45 days');
-
--- Song artists relationships
-INSERT INTO song_artists (song_id, artist_id, role, position) VALUES
-  ('c1111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', 'main', 0),
-  ('c2222222-2222-2222-2222-222222222222', 'a2222222-2222-2222-2222-222222222222', 'main', 0),
-  ('c3333333-3333-3333-3333-333333333333', 'a2222222-2222-2222-2222-222222222222', 'main', 0),
-  ('c4444444-4444-4444-4444-444444444444', 'a4444444-4444-4444-4444-444444444444', 'main', 0),
-  ('c5555555-5555-5555-5555-555555555555', 'a5555555-5555-5555-5555-555555555555', 'main', 0),
-  ('c6666666-6666-6666-6666-666666666666', 'a2222222-2222-2222-2222-222222222222', 'main', 0),
-  -- Featuring example
-  ('c4444444-4444-4444-4444-444444444444', 'a1111111-1111-1111-1111-111111111111', 'featuring', 1);
-
--- Song genres
-INSERT INTO song_genres (song_id, genre_id) 
-SELECT 'c1111111-1111-1111-1111-111111111111', id FROM genres WHERE name = 'rap';
-INSERT INTO song_genres (song_id, genre_id) 
-SELECT 'c2222222-2222-2222-2222-222222222222', id FROM genres WHERE name = 'pop';
-INSERT INTO song_genres (song_id, genre_id) 
-SELECT 'c3333333-3333-3333-3333-333333333333', id FROM genres WHERE name = 'ballad';
-INSERT INTO song_genres (song_id, genre_id) 
-SELECT 'c4444444-4444-4444-4444-444444444444', id FROM genres WHERE name = 'rap';
-INSERT INTO song_genres (song_id, genre_id) 
-SELECT 'c5555555-5555-5555-5555-555555555555', id FROM genres WHERE name = 'pop';
-INSERT INTO song_genres (song_id, genre_id) 
-SELECT 'c6666666-6666-6666-6666-666666666666', id FROM genres WHERE name = 'ballad';
-
--- Album songs
-INSERT INTO album_songs (album_id, song_id, track_number) VALUES
-  ('b1111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111111', 1),
-  ('b2222222-2222-2222-2222-222222222222', 'c2222222-2222-2222-2222-222222222222', 1),
-  ('b2222222-2222-2222-2222-222222222222', 'c3333333-3333-3333-3333-333333333333', 2),
-  ('b2222222-2222-2222-2222-222222222222', 'c6666666-6666-6666-6666-666666666666', 3),
-  ('b3333333-3333-3333-3333-333333333333', 'c5555555-5555-5555-5555-555555555555', 1);
+-- Increment artist followers
+CREATE OR REPLACE FUNCTION increment_artist_followers(p_artist_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE artists SET followers = followers + 1 WHERE id = p_artist_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =====================
--- DONE!
+-- HOÀN TẤT FILE 1
 -- =====================
--- Grant permissions for views
-GRANT SELECT ON songs_with_artists TO anon, authenticated;
-GRANT SELECT ON albums_with_artists TO anon, authenticated;
-GRANT SELECT ON weekly_song_rankings TO anon, authenticated;
-GRANT SELECT ON weekly_artist_rankings TO anon, authenticated;
-GRANT SELECT ON new_releases TO anon, authenticated;
-
--- Disable RLS temporarily to test (hoặc tạo proper policies)
-ALTER TABLE genres DISABLE ROW LEVEL SECURITY;
-ALTER TABLE songs DISABLE ROW LEVEL SECURITY;
-ALTER TABLE artists DISABLE ROW LEVEL SECURITY;
-ALTER TABLE albums DISABLE ROW LEVEL SECURITY;
-ALTER TABLE playlists DISABLE ROW LEVEL SECURITY;
-ALTER TABLE song_artists DISABLE ROW LEVEL SECURITY;
-ALTER TABLE album_artists DISABLE ROW LEVEL SECURITY;
-ALTER TABLE album_songs DISABLE ROW LEVEL SECURITY;
-ALTER TABLE song_genres DISABLE ROW LEVEL SECURITY;
-ALTER TABLE playlist_songs DISABLE ROW LEVEL SECURITY;
-
-SELECT 'Database initialized successfully!' as status;
+SELECT 'FILE 1: Schema created successfully! Run file2.sql next for security policies.' as status;

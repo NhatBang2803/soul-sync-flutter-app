@@ -28,14 +28,20 @@ class AuthService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
+  /// Lưu user đã đăng nhập qua custom auth (username/password hash)
+  app_user.User? _customAuthUser;
+
   /// Current user from Supabase Auth
   User? get currentAuthUser => _client.auth.currentUser;
 
-  /// Check if user is logged in
-  bool get isLoggedIn => currentAuthUser != null;
+  /// Check if user is logged in (either Supabase Auth or custom auth)
+  bool get isLoggedIn => currentAuthUser != null || _customAuthUser != null;
 
-  /// Get current user ID
-  String? get currentUserId => currentAuthUser?.id;
+  /// Get current user ID (from Supabase Auth or custom auth)
+  String? get currentUserId => currentAuthUser?.id ?? _customAuthUser?.id;
+
+  /// Get current user profile (from custom auth)
+  app_user.User? get currentUser => _customAuthUser;
 
   /// Stream of auth state changes
   Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
@@ -183,6 +189,7 @@ class AuthService {
           );
           if (response.user != null) {
             final userProfile = await getUserProfile(response.user!.id);
+            _customAuthUser = userProfile; // Also save to custom auth
             return AuthResult.success(
               user: userProfile,
               message: 'Đăng nhập thành công!',
@@ -203,9 +210,10 @@ class AuthService {
         return AuthResult.failure('Mật khẩu không đúng');
       }
 
-      // Password verified! Create a session using Supabase anonymous or custom token
-      // For now, we'll use a workaround: sign in without session but return user profile
+      // Password verified! Save user to custom auth state
       final userProfile = app_user.User.fromJson(userRecord);
+      _customAuthUser = userProfile;
+      print('Custom auth user saved: ${_customAuthUser?.id}');
 
       return AuthResult.success(
         user: userProfile,
@@ -350,6 +358,8 @@ class AuthService {
   /// Đăng xuất
   Future<AuthResult> signOut() async {
     try {
+      // Clear custom auth user
+      _customAuthUser = null;
       await _client.auth.signOut();
       return AuthResult.success(message: 'Đã đăng xuất');
     } catch (e) {

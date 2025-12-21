@@ -550,7 +550,7 @@ class _SearchPageState extends State<SearchPage> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AddToPlaylistButton(songId: song.id, songTitle: song.title, size: 26),
+          AddToPlaylistButton(songId: song.id, songTitle: song.title, song: song, size: 26),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(

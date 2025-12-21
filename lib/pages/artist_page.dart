@@ -437,6 +437,7 @@ class _ArtistPageState extends State<ArtistPage> {
             AddToPlaylistButton(
               songId: song.id,
               songTitle: song.title,
+              song: song,
               size: 26,
             ),
             const SizedBox(width: 8),
@@ -664,6 +665,7 @@ class _ArtistPageState extends State<ArtistPage> {
             AddToPlaylistButton(
               songId: song.id,
               songTitle: song.title,
+              song: song,
               size: 26,
             ),
             const SizedBox(width: 4),

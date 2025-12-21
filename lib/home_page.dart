@@ -446,6 +446,7 @@ class _HomePageState extends State<HomePage> {
                   child: AddToPlaylistButton(
                     songId: song.id,
                     songTitle: song.title,
+                    song: song,
                     size: 28,
                   ),
                 ),
@@ -613,6 +614,7 @@ class _HomePageState extends State<HomePage> {
               child: AddToPlaylistButton(
                 songId: song.id,
                 songTitle: song.title,
+                song: song,
                 size: 26,
               ),
             ),
