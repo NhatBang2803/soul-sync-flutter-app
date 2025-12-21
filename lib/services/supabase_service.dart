@@ -574,26 +574,41 @@ class SupabaseService {
             .limit(20),
       ]);
 
-      // Also search songs by genre
+      // Also search songs by genre (name or display_name)
       List<Map<String, dynamic>> songsByGenre = [];
       try {
-        final genreResponse = await client
-            .from('song_genres')
-            .select('song_id, genres!inner(name, display_name)')
-            .or('genres.name.ilike.%$query%,genres.display_name.ilike.%$query%')
-            .limit(20);
+        // First find genres matching the query
+        final matchingGenres = await client
+            .from('genres')
+            .select('id')
+            .or('name.ilike.%$query%,display_name.ilike.%$query%')
+            .limit(10);
 
-        // Get the song IDs that match genre
-        final songIds = genreResponse.map((r) => r['song_id']).toSet().toList();
-        if (songIds.isNotEmpty) {
-          songsByGenre = await client
-              .from('songs_with_artists')
-              .select()
-              .inFilter('id', songIds)
+        if (matchingGenres.isNotEmpty) {
+          final genreIds = matchingGenres.map((g) => g['id']).toList();
+
+          // Get songs that have these genres
+          final songGenreLinks = await client
+              .from('song_genres')
+              .select('song_id')
+              .inFilter('genre_id', genreIds)
               .limit(20);
+
+          final songIds = songGenreLinks
+              .map((r) => r['song_id'])
+              .toSet()
+              .toList();
+          if (songIds.isNotEmpty) {
+            songsByGenre = await client
+                .from('songs_with_artists')
+                .select()
+                .inFilter('id', songIds)
+                .limit(20);
+          }
         }
       } catch (e) {
         // Genre search failed, continue without it
+        print('Genre search error: $e');
       }
 
       // Combine and deduplicate songs

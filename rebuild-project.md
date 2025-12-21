@@ -1,413 +1,102 @@
-# 🔄 Soul Sync Flutter App - Rebuild Project Report
+# Kế hoạch Tái cấu trúc & Refactoring Dự án
 
-> **Ngày phân tích**: 19/12/2024  
-> **Mục tiêu**: Đánh giá code hiện tại, đề xuất tái cấu trúc theo Clean Architecture
+## 1. Phân tích Codebase (21/12/2025)
 
----
+### Các file có kích thước lớn (>500 dòng)
+Dưới đây là các file cần được xem xét để tách nhỏ và tối ưu hóa:
 
-## 📊 Tóm tắt phân tích
+1.  **`lib/home_page.dart` (1136 dòng)**
+    *   **Vấn đề**: Chứa quá nhiều logic quản lý trạng thái (`_loadData`), và các hàm xây dựng giao diện con cục bộ (`_buildQuickAccessAlbumItem`, `_buildArtistRankingItem`, `_buildNewReleaseItem`...) bị lặp lại logic ở nhiều nơi khác.
+    *   **Gợi ý sửa đổi**: 
+        *   Tách các widget con ra thành các component riêng biệt trong thư mục `lib/components/`.
+        *   Chuyển logic tải dữ liệu (Supabase services) sang một ViewModel hoặc Provider để tách biệt UI và Logic.
 
-| Tiêu chí | Hiện tại | Đề xuất |
-|----------|----------|---------|
-| **Cấu trúc thư mục** | Flat (phẳng) | Feature-first / Clean Architecture |
-| **State Management** | StatefulWidget + Singleton | Bloc/Cubit hoặc Riverpod |
-| **Models** | Class đơn giản, không serialize | Freezed + json_serializable |
-| **Code duplication** | Cao (~40%) | Thấp (<10%) |
-| **Testability** | Thấp | Cao |
+2.  **`lib/main.dart` (891 dòng)**
+    *   **Vấn đề**: Chứa toàn bộ giao diện màn hình đăng nhập `LoginScreen` (từ dòng 114 đến 654) và widget `MiniPlayerDynamic` (từ dòng 772 trở đi). File `main.dart` chỉ nên dùng để khởi tạo ứng dụng.
+    *   **Gợi ý sửa đổi**: 
+        *   Tách `LoginScreen` ra file `lib/pages/auth/login_screen.dart` và hợp nhất với `lib/pages/auth/login_page.dart` hiện có.
+        *   Di chuyển `MiniPlayerDynamic` vào `lib/components/mini_player.dart` và hợp nhất logic.
 
----
+3.  **`lib/search_page.dart` (861 dòng)**
+    *   **Vấn đề**: Lặp lại code xây dựng các item bài hát, nghệ sĩ giống hệt trang Home. Logic tạo danh sách gợi ý (suggestions) quá dài dòng.
+    *   **Gợi ý sửa đổi**: Sử dụng các component chung như `SongListTile`, `ArtistCard`, `AlbumCard` thay vì viết lại từng hàm `_build...`.
 
-## 🏗️ So sánh cấu trúc thư mục
+4.  **`lib/pages/artist_page.dart` (812 dòng)**
+    *   **Vấn đề**: Tương tự như Home và Search, chứa logic hiển thị danh sách bài hát và album trùng lặp.
+    *   **Gợi ý sửa đổi**: Áp dụng tái sử dụng component.
 
-### Cấu trúc hiện tại
+5.  **`lib/profile_page.dart` (724 dòng)**
+    *   **Vấn đề**: Code UI và logic xử lý sự kiện đang trộn lẫn, khó bảo trì.
 
-```
-lib/
-├── main.dart
-├── home_page.dart ─────────────┐
-├── search_page.dart            │
-├── library_page.dart           ├─ Pages nằm flat trong lib/
-├── music_page.dart             │
-├── podcast_page.dart           │
-├── profile_page.dart           │
-├── now_playing_page.dart       │
-├── admin_seed_page.dart ───────┘
-├── components/
-│   ├── bottom_nav_bar.dart
-│   └── mini_player.dart
-├── config/
-│   └── app_config.dart
-├── data/
-│   └── mock_data.dart
-├── models/
-│   ├── album.dart
-│   ├── artist.dart
-│   ├── playlist.dart
-│   └── song.dart
-└── services/
-    ├── audio_player_service.dart
-    ├── cloudinary_service.dart
-    └── supabase_service.dart
-```
-
-### Cấu trúc đề xuất (Clean Architecture)
-
-```
-lib/
-├── main.dart
-├── app.dart                       # MaterialApp config
-├── injection.dart                 # Dependency injection setup
-│
-├── core/                          # Shared utilities
-│   ├── constants/
-│   │   ├── app_colors.dart
-│   │   └── app_strings.dart
-│   ├── theme/
-│   │   └── app_theme.dart
-│   ├── utils/
-│   │   └── duration_formatter.dart
-│   └── widgets/                   # Reusable widgets
-│       ├── app_image.dart         # Handles network/asset images
-│       ├── filter_chip.dart
-│       ├── song_list_tile.dart
-│       ├── album_list_tile.dart
-│       ├── section_header.dart
-│       └── loading_indicator.dart
-│
-├── features/
-│   ├── home/
-│   │   ├── presentation/
-│   │   │   ├── pages/home_page.dart
-│   │   │   ├── widgets/quick_access_grid.dart
-│   │   │   └── cubit/home_cubit.dart
-│   │   └── domain/
-│   │       └── usecases/get_recent_songs.dart
-│   │
-│   ├── search/
-│   │   └── presentation/
-│   │       ├── pages/search_page.dart
-│   │       └── cubit/search_cubit.dart
-│   │
-│   ├── library/
-│   │   └── presentation/
-│   │       ├── pages/library_page.dart
-│   │       └── cubit/library_cubit.dart
-│   │
-│   ├── player/
-│   │   ├── presentation/
-│   │   │   ├── pages/now_playing_page.dart
-│   │   │   ├── widgets/mini_player.dart
-│   │   │   └── cubit/player_cubit.dart
-│   │   └── domain/
-│   │       └── entities/playback_state.dart
-│   │
-│   ├── profile/
-│   │   └── presentation/
-│   │       └── pages/profile_page.dart
-│   │
-│   └── admin/
-│       └── presentation/
-│           └── pages/admin_seed_page.dart
-│
-├── data/
-│   ├── models/                    # DTOs with fromJson/toJson
-│   │   ├── song_model.dart
-│   │   ├── album_model.dart
-│   │   ├── artist_model.dart
-│   │   └── playlist_model.dart
-│   ├── repositories/
-│   │   ├── song_repository_impl.dart
-│   │   └── playlist_repository_impl.dart
-│   └── datasources/
-│       ├── remote/
-│       │   ├── supabase_datasource.dart
-│       │   └── cloudinary_datasource.dart
-│       └── local/
-│           └── cache_datasource.dart
-│
-└── domain/
-    ├── entities/                  # Pure business objects
-    │   ├── song.dart
-    │   ├── album.dart
-    │   ├── artist.dart
-    │   └── playlist.dart
-    └── repositories/              # Abstract interfaces
-        ├── song_repository.dart
-        └── playlist_repository.dart
-```
+6.  **`lib/services/supabase_service.dart` (652 dòng)**
+    *   **Vấn đề**: "God object" - Một service xử lý tất cả mọi thứ từ Bài hát, Nghệ sĩ, Album, Playlist đến User.
+    *   **Gợi ý sửa đổi**: Chia nhỏ thành các Repository riêng biệt: `SongRepository`, `PlaylistRepository`, `UserRepository`, `ArtistRepository`.
 
 ---
 
-## 🔁 Code bị lặp (Duplicated Code)
+## 2. Các cơ hội Refactor (Tái cấu trúc)
 
-### 1. Filter Chip Widget (~4 files)
+### 1. Thành phần Authentication (Xác thực)
+*   **Hiện trạng**: `lib/main.dart` đang chứa class `LoginScreen`, trong khi đó `lib/pages/auth/login_page.dart` cũng tồn tại nhưng không được `main.dart` sử dụng.
+*   **Đề xuất**:
+    *   Tách `LoginScreen` khỏi `main.dart`.
+    *   Hợp nhất code, giữ lại giao diện đẹp của `LoginScreen` (trong `main.dart`) nhưng tổ chức file vào đúng chỗ `lib/pages/auth/`.
+    *   Cập nhật `AuthWrapper` để code gọn gàng hơn.
 
-| File | Method |
-|------|--------|
-| `home_page.dart` | `_buildTabChip()` |
-| `library_page.dart` | `_buildFilterChip()` |
-| `music_page.dart` | `_buildTabChip()` |
-| `podcast_page.dart` | `_buildTabChip()` |
+### 2. Các UI Component tái sử dụng (Reusable Widgets)
+Nhiều widget đang được viết cứng (hardcoded) trong các file Page. Cần tách chúng ra để dùng chung:
 
-**Giải pháp**: Tạo `core/widgets/filter_chip.dart`
+*   **`SongListTile`** (Item bài hát):
+    *   Đã có file `lib/core/widgets/song_list_tile.dart`.
+    *   **Hành động**: Kiểm tra và nâng cấp widget này để đáp ứng đủ nhu cầu của trang Home, Search, Artist, Album, sau đó thay thế toàn bộ các hàm `_buildSongItem`.
+*   **`ArtistCard`** (Thẻ nghệ sĩ):
+    *   Dùng để hiển thị Avatar tròn + Tên nghệ sĩ.
+    *   **Hành động**: Tạo mới component `lib/components/artist_card.dart` để dùng cho Home (list ngang) và Search (list ngang).
+*   **`AlbumCard`** (Thẻ Album):
+    *   Dùng để hiển thị Album cover vuông + Tên.
+    *   **Hành động**: Tạo mới component `lib/components/album_card.dart` để dùng cho Home (Quick Access & New Releases), Search, và Artist Page.
+*   **`MiniPlayer`**:
+    *   Hợp nhất `lib/components/mini_player.dart` và `MiniPlayerDynamic` (trong `main.dart`).
+    *   Đảm bảo widget này nhận vào `Song` model chuẩn thay vì `Map<String, dynamic>` để tránh lỗi runtime.
 
-```dart
-class AppFilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  // ...
-}
-```
-
----
-
-### 2. Cover Image Widget (~5 files)
-
-Code hiển thị ảnh bìa (network vs asset, fallback icon) lặp lại ở:
-- `home_page.dart` (lines 410-443)
-- `library_page.dart` (lines 286-308, 382-404, 498-520)
-- `search_page.dart` (lines 274-296)
-
-**Giải pháp**: Tạo `core/widgets/app_image.dart`
-
-```dart
-class AppImage extends StatelessWidget {
-  final String? url;
-  final double width;
-  final double height;
-  final IconData fallbackIcon;
-  // Tự động xử lý network/asset/error
-}
-```
+### 3. Làm gọn tầng Service
+*   **Hiện trạng**: `SupabaseService` đang trả về dữ liệu dạng thô `List<Map<String, dynamic>>`. Điều này khiến UI phải liên tục gọi `Song.fromJson(...)`, gây lặp code và dễ lỗi.
+*   **Đề xuất**: Chuyển đổi dữ liệu (Parsing) ngay trong Service. Service nên trả về `List<Song>`, `List<Artist>` trực tiếp.
 
 ---
 
-### 3. Song List Item (~4 files)
+## 3. Danh sách Nhiệm vụ (Checklist)
 
-| File | Method |
-|------|--------|
-| `home_page.dart` | `_buildSongItem()` |
-| `library_page.dart` | `_buildSongItem()` |
-| `search_page.dart` | `ListView.builder` inline |
-| `main.dart` | `MiniPlayerDynamic` |
+### Giai đoạn 1: Tách Component & Dọn dẹp sơ bộ ✅ HOÀN THÀNH
+- [x] Tách `LoginScreen` từ `main.dart` sang `lib/pages/auth/login_screen.dart`. *(main.dart: 891 → 229 dòng)*
+- [x] Hợp nhất `MiniPlayerDynamic` vào `lib/components/mini_player.dart`. *(241 dòng, hỗ trợ cả Song model và Map)*
+- [x] Tạo widget mới `lib/components/artist_card.dart`. *(184 dòng, bao gồm ArtistCard và ArtistCardList)*
+- [x] Tạo widget mới `lib/components/album_card.dart`. *(291 dòng, bao gồm AlbumCard, QuickAccessAlbumCard, QuickAccessAlbumGrid)*
+- [x] Cập nhật `SongListTile` để linh hoạt hơn. *(Đã có sẵn tại lib/core/widgets/song_list_tile.dart)*
 
-**Giải pháp**: Tạo `core/widgets/song_list_tile.dart`
+### Giai đoạn 2: Refactor các màn hình chính ✅ HOÀN THÀNH
+- [x] Refactor `home_page.dart`: Sử dụng `QuickAccessAlbumGrid`, `ArtistCard`. *(1136 → 952 dòng, giảm 184 dòng)*
+- [x] Refactor `search_page.dart`: Sử dụng `ArtistCard`. *(861 → 840 dòng, giảm 21 dòng)*
+- [x] Refactor `main.dart`: Xóa code thừa LoginScreen và MiniPlayerDynamic. *(891 → 229 dòng, giảm 662 dòng)*
 
----
-
-### 4. Scroll Reset Pattern (~3 files)
-
-```dart
-void _scrollListener() {
-  if (_scrollController.position.pixels <= 0 && 
-      _scrollController.position.pixels == _scrollController.position.minScrollExtent) {
-    _resetPage();
-  }
-}
-```
-
-Lặp ở: `home_page.dart`, `music_page.dart`, `podcast_page.dart`
-
-**Giải pháp**: Tạo mixin hoặc custom ScrollController
+### Giai đoạn 3: Refactor Service & Model (Đề xuất cho tương lai)
+- [ ] Cập nhật `SupabaseService` để trả về dữ liệu dạng Model thay vì Map.
+- [ ] (Tùy chọn) Chia nhỏ `SupabaseService` nếu file vẫn còn quá lớn.
 
 ---
 
-### 5. Song Data Mapping (~3 files)
+## Kết quả Refactoring
 
-```dart
-final playlist = _songs.map((s) => {
-  'id': s['id'],
-  'songName': s['title'],
-  'artistName': s['artist_name'],
-  // ...
-}).toList();
-```
+| File | Trước | Sau | Giảm |
+|------|-------|-----|------|
+| `main.dart` | 891 | 229 | **-662 dòng** |
+| `home_page.dart` | 1136 | 952 | **-184 dòng** |
+| `search_page.dart` | 861 | 840 | **-21 dòng** |
+| **Tổng giảm** | | | **-867 dòng** |
 
-Lặp ở: `home_page.dart`, `library_page.dart`, `search_page.dart`
+### Components mới được tạo:
+- `lib/pages/auth/login_screen.dart` (548 dòng)
+- `lib/components/artist_card.dart` (184 dòng)
+- `lib/components/album_card.dart` (291 dòng)
+- `lib/components/mini_player.dart` (241 dòng - đã cập nhật)
 
-**Giải pháp**: Tạo extension method hoặc model có `toPlayerFormat()`
-
----
-
-## ⚠️ Luồng hoạt động chưa tối ưu
-
-### 1. State Management không nhất quán
-
-| Vấn đề | Mô tả |
-|--------|-------|
-| Singleton + StatefulWidget | `AudioPlayerService` là singleton nhưng mỗi page tự tạo instance và listen riêng |
-| Duplicate subscriptions | Mỗi page tự subscribe streams, dẫn đến multiple listeners |
-| No centralized state | Player state không được share qua Provider/Bloc |
-
-**Giải pháp**: Sử dụng **flutter_bloc** hoặc **riverpod**
-
----
-
-### 2. Models không có serialization
-
-```dart
-class Song {
-  final String id;
-  final String title;
-  // ... KHÔNG có fromJson/toJson
-}
-```
-
-Hậu quả:
-- Phải dùng `Map<String, dynamic>` khắp nơi
-- Không type-safe
-- Dễ lỗi typo key names
-
-**Giải pháp**: Sử dụng **freezed** + **json_serializable**
-
-```dart
-@freezed
-class Song with _$Song {
-  const factory Song({
-    required String id,
-    required String title,
-    // ...
-  }) = _Song;
-
-  factory Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
-}
-```
-
----
-
-### 3. Mixed data types
-
-Một số nơi dùng `Song` model, một số nơi dùng `Map<String, dynamic>`:
-
-| File | Data Type |
-|------|-----------|
-| `mock_data.dart` | `Song` model |
-| `supabase_service.dart` | `Map<String, dynamic>` |
-| `audio_player_service.dart` | `Map<String, dynamic>` |
-| `home_page.dart` | `Map<String, dynamic>` |
-
-**Giải pháp**: Chuẩn hóa dùng typed models với `fromJson`
-
----
-
-### 4. Thiếu Loading/Error states
-
-Nhiều pages chỉ có loading spinner, không xử lý error UI properly:
-
-```dart
-if (_isLoading) {
-  return CircularProgressIndicator();
-}
-// Thiếu error UI
-```
-
-**Giải pháp**: Sử dụng pattern như:
-
-```dart
-enum DataState { initial, loading, success, error }
-
-class BlocState {
-  final DataState state;
-  final String? error;
-  final List<Song>? data;
-}
-```
-
----
-
-## 📦 Thư viện đề xuất
-
-| Thư viện | Mục đích | Hiện có? |
-|----------|----------|----------|
-| `flutter_bloc` / `bloc` | State management | ❌ |
-| `freezed` | Immutable data classes | ❌ |
-| `json_serializable` | JSON serialization | ❌ |
-| `get_it` | Dependency injection | ❌ |
-| `cached_network_image` | Image caching | ❌ |
-| `go_router` | Declarative routing | ❌ |
-| `dartz` | Functional programming (Either) | ❌ |
-
-### pubspec.yaml đề xuất thêm:
-
-```yaml
-dependencies:
-  # State Management
-  flutter_bloc: ^8.1.3
-  
-  # Dependency Injection
-  get_it: ^7.6.7
-  injectable: ^2.3.2
-  
-  # Data Classes
-  freezed_annotation: ^2.4.1
-  json_annotation: ^4.9.0
-  
-  # Image Caching
-  cached_network_image: ^3.3.1
-  
-  # Routing
-  go_router: ^14.0.2
-
-dev_dependencies:
-  # Code Generation
-  build_runner: ^2.4.8
-  freezed: ^2.4.6
-  json_serializable: ^6.7.1
-  injectable_generator: ^2.4.1
-```
-
----
-
-## ✅ Ưu điểm cấu trúc hiện tại
-
-1. **Services đã là Singleton** - `SupabaseService`, `AudioPlayerService` follow singleton pattern
-2. **Tách biệt UI và data** - Models và services nằm riêng folders
-3. **Consistent UI theme** - Màu sắc và style khá nhất quán
-4. **Working audio playback** - Hệ thống phát nhạc hoạt động đúng
-
----
-
-## ❌ Nhược điểm cấu trúc hiện tại
-
-1. **Flat structure** - Khó tìm files khi project lớn
-2. **No architecture pattern** - Không theo MVC/MVVM/Clean Architecture
-3. **High coupling** - Pages phụ thuộc trực tiếp vào Services
-4. **Code duplication** - ~40% code UI bị lặp
-5. **No type safety** - Dùng `Map<String, dynamic>` thay vì typed models
-6. **Hard to test** - Không có dependency injection
-
----
-
-## 🎯 Kế hoạch thực hiện
-
-### Phase 1: Core Infrastructure (Priority: High)
-- [ ] Setup thư viện mới (bloc, freezed, get_it)
-- [ ] Tạo thư mục `core/` với constants, theme, utils
-- [ ] Tạo reusable widgets trong `core/widgets/`
-
-### Phase 2: Data Layer (Priority: High)  
-- [ ] Convert models sang Freezed
-- [ ] Thêm `fromJson`/`toJson`
-- [ ] Tạo Repository pattern
-
-### Phase 3: Feature Modules (Priority: Medium)
-- [ ] Tách từng page thành feature folder
-- [ ] Implement Cubit cho mỗi feature
-- [ ] Loại bỏ duplicate code
-
-### Phase 4: Testing & Polish (Priority: Low)
-- [ ] Unit tests cho Cubits
-- [ ] Widget tests cho components
-- [ ] Integration tests
-
----
-
-## 📎 Files tham khảo
-
-| File hiện tại | Vấn đề chính |
-|---------------|--------------|
-| [home_page.dart](file:///home/hyanhasta05/workspace/soul-sync-flutter-app/lib/home_page.dart) | Duplicate widgets, mixed Map usage |
-| [library_page.dart](file:///home/hyanhasta05/workspace/soul-sync-flutter-app/lib/library_page.dart) | Largest file (561 lines), nhiều code lặp |
-| [main.dart](file:///home/hyanhasta05/workspace/soul-sync-flutter-app/lib/main.dart) | MiniPlayerDynamic nên thành component riêng |
-| [models/song.dart](file:///home/hyanhasta05/workspace/soul-sync-flutter-app/lib/models/song.dart) | Thiếu fromJson/toJson |

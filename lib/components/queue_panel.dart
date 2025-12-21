@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/song.dart';
 import '../services/queue_service.dart';
+import '../services/audio_player_service.dart';
 import '../core/core.dart';
 
 class QueuePanel extends StatefulWidget {
@@ -12,6 +14,25 @@ class QueuePanel extends StatefulWidget {
 
 class _QueuePanelState extends State<QueuePanel> {
   final QueueService _queueService = QueueService();
+  final AudioPlayerService _audioPlayerService = AudioPlayerService();
+  StreamSubscription? _queueSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for queue changes to rebuild UI
+    _queueSubscription = _queueService.onQueueChanged.listen((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _queueSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,9 +51,7 @@ class _QueuePanelState extends State<QueuePanel> {
             children: [
               _buildHandle(),
               _buildHeader(),
-              Expanded(
-                child: _buildQueueList(scrollController),
-              ),
+              Expanded(child: _buildQueueList(scrollController)),
             ],
           ),
         );
@@ -76,19 +95,20 @@ class _QueuePanelState extends State<QueuePanel> {
           IconButton(
             icon: Icon(
               Icons.shuffle,
-              color: _queueService.isShuffleEnabled 
-                  ? AppColors.primary 
+              color: _queueService.isShuffleEnabled
+                  ? AppColors.primary
                   : AppColors.textSecondary,
             ),
             onPressed: () {
-              setState(() {
-                _queueService.toggleShuffle();
-              });
+              _queueService.toggleShuffle();
             },
           ),
           // Clear queue
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.delete_outline,
+              color: AppColors.textSecondary,
+            ),
             onPressed: () {
               showDialog(
                 context: context,
@@ -146,10 +166,8 @@ class _QueuePanelState extends State<QueuePanel> {
       scrollController: scrollController,
       itemCount: queue.length,
       onReorder: (oldIndex, newIndex) {
-        setState(() {
-          if (newIndex > oldIndex) newIndex--;
-          _queueService.reorderQueue(oldIndex, newIndex);
-        });
+        if (newIndex > oldIndex) newIndex--;
+        _queueService.reorderQueue(oldIndex, newIndex);
       },
       proxyDecorator: (child, index, animation) {
         return AnimatedBuilder(
@@ -187,7 +205,9 @@ class _QueuePanelState extends State<QueuePanel> {
   }) {
     return Container(
       key: key,
-      color: isCurrentSong ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+      color: isCurrentSong
+          ? AppColors.primary.withOpacity(0.15)
+          : Colors.transparent,
       child: ListTile(
         leading: Stack(
           children: [
@@ -239,11 +259,13 @@ class _QueuePanelState extends State<QueuePanel> {
           children: [
             if (!isCurrentSong)
               IconButton(
-                icon: const Icon(Icons.close, color: AppColors.textMuted, size: 20),
+                icon: const Icon(
+                  Icons.close,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
                 onPressed: () {
-                  setState(() {
-                    _queueService.removeFromQueue(index);
-                  });
+                  _queueService.removeFromQueue(index);
                 },
               ),
             ReorderableDragStartListener(
@@ -252,9 +274,12 @@ class _QueuePanelState extends State<QueuePanel> {
             ),
           ],
         ),
-        onTap: () {
-          _queueService.jumpToIndex(index);
-          Navigator.pop(context, true); // Return true to indicate song was selected
+        onTap: () async {
+          // Skip to this song
+          await _audioPlayerService.skipToIndex(index);
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
         },
       ),
     );

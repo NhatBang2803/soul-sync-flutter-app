@@ -87,6 +87,15 @@ class _PlaylistPageState extends State<PlaylistPage> {
     _playPlaylist(startIndex: index);
   }
 
+  String _formatTotalPlayCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M lượt nghe';
+    } else if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K lượt nghe';
+    }
+    return '$count lượt nghe';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -273,9 +282,11 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   ],
                 ),
               ),
-              // Listen count
+              // Listen count (sum of all songs' play counts)
               Text(
-                _playlist!.formattedListenCount,
+                _formatTotalPlayCount(
+                  _songs.fold(0, (sum, s) => sum + s.playCount),
+                ),
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 14,

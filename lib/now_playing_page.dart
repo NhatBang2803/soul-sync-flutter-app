@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'services/audio_player_service.dart';
 import 'services/queue_service.dart';
+import 'services/supabase_service.dart';
+import 'services/auth_service.dart';
 import 'core/core.dart';
 import 'components/queue_panel.dart';
 import 'components/sleep_timer_dialog.dart';
 
 class NowPlayingPage extends StatefulWidget {
   final VoidCallback? onClose;
-  
+
   const NowPlayingPage({super.key, this.onClose});
 
   @override
@@ -19,6 +21,8 @@ class NowPlayingPage extends StatefulWidget {
 class _NowPlayingPageState extends State<NowPlayingPage> {
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
   final QueueService _queueService = QueueService();
+  final SupabaseService _supabaseService = SupabaseService();
+  final AuthService _authService = AuthService();
 
   late StreamSubscription<PlayerState> _playerStateSubscription;
   late StreamSubscription<Duration> _positionSubscription;
@@ -28,12 +32,14 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   Map<String, dynamic>? _currentSong;
+  bool _isLiked = false;
 
   @override
   void initState() {
     super.initState();
     _initPlayerState();
     _setupListeners();
+    _checkIfLiked();
   }
 
   void _initPlayerState() {
@@ -44,26 +50,77 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 
   void _setupListeners() {
-    _playerStateSubscription = _audioPlayerService.playerStateStream.listen((state) {
+    _playerStateSubscription = _audioPlayerService.playerStateStream.listen((
+      state,
+    ) {
       if (mounted) {
+        final newSong = _audioPlayerService.currentSong;
+        final songChanged = _currentSong?['id'] != newSong?['id'];
         setState(() {
           _isPlaying = state.playing;
-          _currentSong = _audioPlayerService.currentSong;
+          _currentSong = newSong;
         });
+        // Re-check like status when song changes
+        if (songChanged) {
+          _checkIfLiked();
+        }
       }
     });
 
-    _positionSubscription = _audioPlayerService.positionStream.listen((position) {
+    _positionSubscription = _audioPlayerService.positionStream.listen((
+      position,
+    ) {
       if (mounted) {
         setState(() => _position = position);
       }
     });
 
-    _durationSubscription = _audioPlayerService.durationStream.listen((duration) {
+    _durationSubscription = _audioPlayerService.durationStream.listen((
+      duration,
+    ) {
       if (mounted) {
         setState(() => _duration = duration ?? Duration.zero);
       }
     });
+  }
+
+  Future<void> _checkIfLiked() async {
+    final userId = _authService.currentUserId;
+    final songId = _currentSong?['id'];
+    if (userId == null || songId == null) return;
+
+    try {
+      final liked = await _supabaseService.isSongLiked(userId, songId);
+      if (mounted) {
+        setState(() => _isLiked = liked);
+      }
+    } catch (e) {
+      // Ignore error
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    final userId = _authService.currentUserId;
+    final songId = _currentSong?['id'];
+    if (userId == null || songId == null) return;
+
+    try {
+      if (_isLiked) {
+        await _supabaseService.unlikeSong(userId, songId);
+      } else {
+        await _supabaseService.likeSong(userId, songId);
+      }
+      if (mounted) {
+        setState(() => _isLiked = !_isLiked);
+      }
+    } catch (e) {
+      // Show error snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: ${e.toString()}')));
+      }
+    }
   }
 
   @override
@@ -267,10 +324,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         const SizedBox(height: 8),
         Text(
           artistName,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 16,
-          ),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
           textAlign: TextAlign.center,
         ),
       ],
@@ -278,8 +332,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 
   Widget _buildProgressBar() {
-    final maxDuration = _duration.inMilliseconds > 0 
-        ? _duration.inMilliseconds.toDouble() 
+    final maxDuration = _duration.inMilliseconds > 0
+        ? _duration.inMilliseconds.toDouble()
         : 100.0;
 
     return Column(
@@ -339,7 +393,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         IconButton(
           icon: Icon(
             Icons.shuffle,
-            color: isShuffleEnabled ? AppColors.primary : AppColors.textSecondary,
+            color: isShuffleEnabled
+                ? AppColors.primary
+                : AppColors.textSecondary,
           ),
           iconSize: 24,
           onPressed: () {
@@ -384,8 +440,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         // Repeat
         IconButton(
           icon: Icon(_getRepeatIcon(repeatMode)),
-          color: repeatMode != RepeatMode.off 
-              ? AppColors.primary 
+          color: repeatMode != RepeatMode.off
+              ? AppColors.primary
               : AppColors.textSecondary,
           iconSize: 24,
           onPressed: () {
@@ -416,9 +472,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         children: [
           // Like
           IconButton(
-            icon: const Icon(Icons.favorite_border),
-            color: AppColors.textSecondary,
-            onPressed: () {},
+            icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
+            color: _isLiked ? Colors.red : AppColors.textSecondary,
+            onPressed: _toggleLike,
           ),
           // Queue
           IconButton(
@@ -454,8 +510,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
           IconButton(
             icon: Icon(
               Icons.bedtime,
-              color: _audioPlayerService.hasSleepTimer 
-                  ? AppColors.primary 
+              color: _audioPlayerService.hasSleepTimer
+                  ? AppColors.primary
                   : AppColors.textSecondary,
             ),
             onPressed: _openSleepTimer,

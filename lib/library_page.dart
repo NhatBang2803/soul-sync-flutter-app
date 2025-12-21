@@ -27,7 +27,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   List<Playlist> _playlists = [];
   List<Album> _albums = [];
-  List<Song> _songs = [];
+  List<Song> _likedSongs = [];
   bool _isLoading = true;
   String? _error;
 
@@ -60,7 +60,10 @@ class _LibraryPageState extends State<LibraryPage> {
             ? _supabaseService.getUserPlaylists(userId)
             : Future.value(<Map<String, dynamic>>[]),
         _supabaseService.getAlbums(),
-        _supabaseService.getSongs(),
+        // Lấy bài hát đã yêu thích của user
+        userId != null
+            ? _supabaseService.getLikedSongs(userId)
+            : Future.value(<Map<String, dynamic>>[]),
       ]);
 
       if (mounted) {
@@ -71,7 +74,7 @@ class _LibraryPageState extends State<LibraryPage> {
           _albums = (results[1] as List)
               .map((json) => Album.fromJson(json))
               .toList();
-          _songs = (results[2] as List)
+          _likedSongs = (results[2] as List)
               .map((json) => Song.fromJson(json))
               .toList();
           _isLoading = false;
@@ -88,7 +91,7 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   void _onSongTap(Song song, int index) async {
-    final playlist = _songs.map((s) => s.toPlayerFormat()).toList();
+    final playlist = _likedSongs.map((s) => s.toPlayerFormat()).toList();
     await _audioService.setPlaylist(playlist, index);
 
     if (mounted) {
@@ -232,7 +235,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${_songs.length} bài hát',
+                          '${_likedSongs.length} bài hát',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -433,7 +436,7 @@ class _LibraryPageState extends State<LibraryPage> {
             ),
           ),
           const SizedBox(height: 16),
-          if (_songs.isEmpty)
+          if (_likedSongs.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16.0),
               child: Text(
@@ -442,7 +445,7 @@ class _LibraryPageState extends State<LibraryPage> {
               ),
             )
           else
-            ..._songs.asMap().entries.map((entry) {
+            ..._likedSongs.asMap().entries.map((entry) {
               final index = entry.key;
               final song = entry.value;
               return LikedSongListTile(

@@ -1,6 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
 import 'components/add_to_playlist_dialog.dart';
+import 'components/artist_card.dart';
+import 'components/album_card.dart';
 import 'now_playing_page.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
@@ -31,6 +34,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, List<Song>> _rankingsByGenre = {};
   List<Artist> _topArtists = [];
   List<Song> _newReleases = [];
+  List<Album> _quickAccessAlbums = [];
   bool _isLoading = true;
   String? _error;
   int _selectedFilterIndex = 0;
@@ -86,6 +90,14 @@ class _HomePageState extends State<HomePage> {
         print('Error loading new releases: $e');
       }
 
+      // Load quick access albums (4 random)
+      List<Map<String, dynamic>> quickAlbumsData = [];
+      try {
+        quickAlbumsData = await _supabaseService.getRandomAlbums(4);
+      } catch (e) {
+        print('Error loading quick access albums: $e');
+      }
+
       if (mounted) {
         final genres = genresData.map((json) => Genre.fromJson(json)).toList();
 
@@ -113,6 +125,9 @@ class _HomePageState extends State<HomePage> {
               .toList();
           _newReleases = releasesData
               .map((json) => Song.fromJson(json))
+              .toList();
+          _quickAccessAlbums = quickAlbumsData
+              .map((json) => Album.fromJson(json))
               .toList();
           _isLoading = false;
         });
@@ -306,174 +321,44 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildQuickAccessGrid() {
-    final items = [
-      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
-      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
-      {'title': 'EM XINH SAY\nHI 2025', 'color': Colors.pink},
-      {'title': 'ANH TRAI SAY\nHI 2025', 'color': Colors.blue},
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Column(
-        children: [
-          for (int i = 0; i < items.length; i += 2)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildQuickAccessItem(
-                      items[i]['title'] as String,
-                      items[i]['color'] as Color,
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  if (i + 1 < items.length)
-                    Expanded(
-                      child: _buildQuickAccessItem(
-                        items[i + 1]['title'] as String,
-                        items[i + 1]['color'] as Color,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickAccessItem(String title, Color color) {
-    return Container(
-      height: 50,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: const Icon(Icons.music_note, color: AppColors.textPrimary),
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-            ),
-          ),
-        ],
-      ),
+    // Using reusable QuickAccessAlbumGrid component
+    return QuickAccessAlbumGrid(
+      albums: _quickAccessAlbums,
+      maxItems: 4,
+      onAlbumTap: (album) {
+        Navigator.pushNamed(context, '/album', arguments: album.id);
+      },
     );
   }
 
   // ==================== ARTIST RANKING ====================
 
   Widget _buildArtistRanking() {
+    // Using reusable ArtistCardList component with ranking
     return SizedBox(
       height: 160,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _topArtists.take(10).length,
+        itemCount: _topArtists.take(7).length,
         itemBuilder: (context, index) {
           final artist = _topArtists[index];
-          return _buildArtistRankingItem(artist, index + 1);
+          return ArtistCard(
+            artist: artist,
+            avatarRadius: 45,
+            width: 110,
+            showFollowers: true,
+            rank: index + 1,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ArtistPage(artistId: artist.id),
+                ),
+              );
+            },
+          );
         },
-      ),
-    );
-  }
-
-  Widget _buildArtistRankingItem(Artist artist, int rank) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ArtistPage(artistId: artist.id),
-          ),
-        );
-      },
-      child: Container(
-        width: 110,
-        margin: const EdgeInsets.only(right: 12),
-        child: Column(
-          children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 45,
-                  backgroundColor: AppColors.surface,
-                  backgroundImage: artist.imageUrl != null
-                      ? NetworkImage(artist.imageUrl!)
-                      : null,
-                  child: artist.imageUrl == null
-                      ? const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: AppColors.textMuted,
-                        )
-                      : null,
-                ),
-                // Rank badge
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: _getRankColor(rank),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.background, width: 2),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$rank',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              artist.name,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              artist.formattedFollowers,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -499,7 +384,7 @@ class _HomePageState extends State<HomePage> {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _newReleases.take(10).length,
+        itemCount: _newReleases.take(7).length,
         itemBuilder: (context, index) {
           final song = _newReleases[index];
           return _buildNewReleaseItem(song, index);

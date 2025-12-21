@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:just_audio/just_audio.dart';
 import 'queue_service.dart';
+import '../models/song.dart';
 
 /// Service để quản lý phát nhạc
+/// Uses QueueService as single source of truth for queue state
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
   factory AudioPlayerService() => _instance;
@@ -14,8 +16,6 @@ class AudioPlayerService {
 
   late final AudioPlayer _audioPlayer;
   final QueueService _queueService = QueueService();
-  final List<Map<String, dynamic>> _playlist = [];
-  int _currentIndex = 0;
 
   // Sleep timer
   Timer? _sleepTimer;
@@ -28,16 +28,19 @@ class AudioPlayerService {
   Stream<Duration?> get durationStream => _audioPlayer.durationStream;
   Stream<bool> get playingStream => _audioPlayer.playingStream;
 
-  // Current state
+  // Current state - delegate to QueueService
   bool get isPlaying => _audioPlayer.playing;
   Duration get position => _audioPlayer.position;
   Duration get duration => _audioPlayer.duration ?? Duration.zero;
-  Map<String, dynamic>? get currentSong =>
-      _playlist.isNotEmpty && _currentIndex < _playlist.length
-      ? _playlist[_currentIndex]
-      : null;
-  int get currentIndex => _currentIndex;
-  List<Map<String, dynamic>> get playlist => List.unmodifiable(_playlist);
+
+  /// Get current song from QueueService (Map format for UI)
+  Map<String, dynamic>? get currentSong => _queueService.currentSongMap;
+
+  /// Get current index from QueueService
+  int get currentIndex => _queueService.currentIndex;
+
+  /// Get playlist from QueueService
+  List<Map<String, dynamic>> get playlist => _queueService.toPlayerFormat();
 
   // Sleep timer getters
   Duration? get remainingSleepTime {
@@ -61,57 +64,41 @@ class AudioPlayerService {
     });
   }
 
-  void _onSongCompleted() {
-    if (_playlist.isEmpty) return;
+  /// Handle song completion - delegate to QueueService for next song logic
+  Future<void> _onSongCompleted() async {
+    final nextSong = await _queueService.handleSongCompleted();
 
-    final repeatMode = _queueService.repeatMode;
-
-    switch (repeatMode) {
-      case RepeatMode.one:
-        // Lặp lại bài hiện tại
-        seek(Duration.zero);
-        play();
-        break;
-
-      case RepeatMode.queue:
-        // Lặp toàn bộ hàng đợi - quay về đầu nếu hết
-        _currentIndex = (_currentIndex + 1) % _playlist.length;
-        _loadAndPlay(_playlist[_currentIndex]);
-        break;
-
-      case RepeatMode.off:
-        // Chỉ chuyển bài nếu còn bài tiếp theo, dừng nếu hết
-        if (_currentIndex < _playlist.length - 1) {
-          _currentIndex++;
-          _loadAndPlay(_playlist[_currentIndex]);
-        }
-        // Nếu hết danh sách thì dừng (không làm gì thêm)
-        break;
+    if (nextSong != null) {
+      await _loadAndPlay(nextSong.toPlayerFormat());
     }
+    // If null, playback stops (already handled by just_audio)
   }
 
   // ==================== PLAYBACK CONTROL ====================
 
   /// Set playlist and start playing
+  /// This syncs with QueueService
   Future<void> setPlaylist(
     List<Map<String, dynamic>> songs, [
     int startIndex = 0,
   ]) async {
-    _playlist.clear();
-    _playlist.addAll(songs);
-    _currentIndex = startIndex.clamp(0, songs.length - 1);
+    // Convert to Song models and update QueueService
+    final songModels = songs
+        .map((json) => Song.fromPlayerFormat(json))
+        .toList();
 
-    if (_playlist.isNotEmpty) {
-      await _loadAndPlay(_playlist[_currentIndex]);
+    _queueService.replaceQueue(songModels, startIndex: startIndex);
+
+    // Start playing current song
+    final current = _queueService.currentSongMap;
+    if (current != null) {
+      await _loadAndPlay(current);
     }
   }
 
-  /// Play a single song
+  /// Play a single song (adds to queue and plays)
   Future<void> playSong(Map<String, dynamic> song) async {
-    _playlist.clear();
-    _playlist.add(song);
-    _currentIndex = 0;
-    await _loadAndPlay(song);
+    await setPlaylist([song], 0);
   }
 
   Future<void> _loadAndPlay(Map<String, dynamic> song) async {
@@ -171,33 +158,34 @@ class AudioPlayerService {
     await _audioPlayer.seek(position);
   }
 
-  /// Play next song
+  /// Play next song - delegate to QueueService
   Future<void> next() async {
-    if (_playlist.isEmpty) return;
-
-    _currentIndex = (_currentIndex + 1) % _playlist.length;
-    await _loadAndPlay(_playlist[_currentIndex]);
+    final nextSong = _queueService.moveToNext();
+    if (nextSong != null) {
+      await _loadAndPlay(nextSong.toPlayerFormat());
+    }
   }
 
-  /// Play previous song
+  /// Play previous song - delegate to QueueService
   Future<void> previous() async {
-    if (_playlist.isEmpty) return;
-
     // If more than 3 seconds into song, restart it
     if (_audioPlayer.position.inSeconds > 3) {
       await seek(Duration.zero);
       return;
     }
 
-    _currentIndex = (_currentIndex - 1 + _playlist.length) % _playlist.length;
-    await _loadAndPlay(_playlist[_currentIndex]);
+    final prevSong = _queueService.moveToPrevious();
+    if (prevSong != null) {
+      await _loadAndPlay(prevSong.toPlayerFormat());
+    }
   }
 
   /// Skip to specific index in playlist
   Future<void> skipToIndex(int index) async {
-    if (index >= 0 && index < _playlist.length) {
-      _currentIndex = index;
-      await _loadAndPlay(_playlist[_currentIndex]);
+    _queueService.jumpToIndex(index);
+    final song = _queueService.currentSongMap;
+    if (song != null) {
+      await _loadAndPlay(song);
     }
   }
 

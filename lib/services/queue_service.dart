@@ -1,15 +1,17 @@
+import 'dart:async';
 import 'dart:math';
 import '../models/song.dart';
 import 'supabase_service.dart';
 
 /// Repeat modes for playback
 enum RepeatMode {
-  off,    // No repeat - fetch random songs when queue ends
-  one,    // Repeat single song
-  queue,  // Repeat entire queue
+  off, // No repeat - stop when queue ends (or fetch random if shuffle)
+  one, // Repeat single song
+  queue, // Repeat entire queue
 }
 
 /// Service để quản lý hàng đợi phát nhạc
+/// This is the SINGLE SOURCE OF TRUTH for queue state
 class QueueService {
   static final QueueService _instance = QueueService._internal();
   factory QueueService() => _instance;
@@ -25,21 +27,33 @@ class QueueService {
   bool _isShuffleEnabled = false;
   RepeatMode _repeatMode = RepeatMode.off;
 
+  // Stream controller for queue changes
+  final _queueChangeController = StreamController<void>.broadcast();
+  Stream<void> get onQueueChanged => _queueChangeController.stream;
+
   // Played history for shuffle (to avoid repeating recently played)
   final Set<String> _playedIds = {};
 
   // Getters
   List<Song> get queue => List.unmodifiable(_queue);
   int get currentIndex => _currentIndex;
-  Song? get currentSong => _queue.isNotEmpty && _currentIndex < _queue.length 
-      ? _queue[_currentIndex] 
+  Song? get currentSong => _queue.isNotEmpty && _currentIndex < _queue.length
+      ? _queue[_currentIndex]
       : null;
   bool get isShuffleEnabled => _isShuffleEnabled;
   RepeatMode get repeatMode => _repeatMode;
   bool get isEmpty => _queue.isEmpty;
   int get length => _queue.length;
-  bool get hasNext => _currentIndex < _queue.length - 1 || _repeatMode != RepeatMode.off;
+  bool get hasNext =>
+      _currentIndex < _queue.length - 1 || _repeatMode != RepeatMode.off;
   bool get hasPrevious => _currentIndex > 0;
+
+  /// Get current song in player format (Map)
+  Map<String, dynamic>? get currentSongMap => currentSong?.toPlayerFormat();
+
+  void _notifyChange() {
+    _queueChangeController.add(null);
+  }
 
   // ==================== QUEUE MANAGEMENT ====================
 
@@ -47,20 +61,25 @@ class QueueService {
   void replaceQueue(List<Song> songs, {int startIndex = 0}) {
     _queue = List.from(songs);
     _originalQueue = List.from(songs);
-    _currentIndex = startIndex.clamp(0, songs.length - 1);
+    _currentIndex = startIndex.clamp(
+      0,
+      songs.isNotEmpty ? songs.length - 1 : 0,
+    );
     _playedIds.clear();
-    
+
     if (_isShuffleEnabled && songs.isNotEmpty) {
       _shuffleQueue(keepCurrent: true);
     }
-    
+
     _markCurrentAsPlayed();
+    _notifyChange();
   }
 
   /// Add a song to the end of the queue
   void addToQueue(Song song) {
     _queue.add(song);
     _originalQueue.add(song);
+    _notifyChange();
   }
 
   /// Add a song to play next (after current)
@@ -72,6 +91,7 @@ class QueueService {
     } else {
       addToQueue(song);
     }
+    _notifyChange();
   }
 
   /// Remove a song from queue by index
@@ -86,8 +106,9 @@ class QueueService {
     if (index < _currentIndex) {
       _currentIndex--;
     } else if (index == _currentIndex && _currentIndex >= _queue.length) {
-      _currentIndex = _queue.length - 1;
+      _currentIndex = _queue.length > 0 ? _queue.length - 1 : 0;
     }
+    _notifyChange();
   }
 
   /// Remove a specific song from queue
@@ -104,6 +125,7 @@ class QueueService {
     _originalQueue.clear();
     _currentIndex = 0;
     _playedIds.clear();
+    _notifyChange();
   }
 
   /// Move song from one position to another
@@ -122,65 +144,123 @@ class QueueService {
     } else if (oldIndex > _currentIndex && newIndex <= _currentIndex) {
       _currentIndex++;
     }
+    _notifyChange();
   }
 
-  // ==================== PLAYBACK NAVIGATION ====================
+  // ==================== MAIN PLAYBACK LOGIC ====================
 
-  /// Get next song based on repeat mode and shuffle
-  Future<Song?> getNextSong() async {
+  /// Handle when a song completes playing
+  /// Returns the next song to play, or null if playback should stop
+  Future<Song?> handleSongCompleted() async {
     if (_queue.isEmpty) return null;
 
-    switch (_repeatMode) {
-      case RepeatMode.one:
-        // Stay on current song
-        return currentSong;
-
-      case RepeatMode.queue:
-        // Move to next, loop back to start if at end
-        if (_isShuffleEnabled) {
-          return _getNextShuffled(allowLoop: true);
-        }
-        _currentIndex = (_currentIndex + 1) % _queue.length;
-        _markCurrentAsPlayed();
-        return currentSong;
-
-      case RepeatMode.off:
-        // Move to next, fetch random songs if at end
-        if (_isShuffleEnabled) {
-          return _getNextShuffled(allowLoop: false);
-        }
-        
-        if (_currentIndex < _queue.length - 1) {
-          _currentIndex++;
-          _markCurrentAsPlayed();
-          return currentSong;
-        } else {
-          // End of queue - fetch random songs
-          await _fetchRandomSongs();
-          if (_queue.isNotEmpty && _currentIndex < _queue.length - 1) {
-            _currentIndex++;
-            _markCurrentAsPlayed();
-            return currentSong;
-          }
-          return null;
-        }
-    }
-  }
-
-  /// Get previous song
-  Song? getPreviousSong() {
-    if (_queue.isEmpty) return null;
-
+    // Repeat One: always return current song
     if (_repeatMode == RepeatMode.one) {
       return currentSong;
     }
 
+    final isLastSong = _currentIndex >= _queue.length - 1;
+
+    if (!_isShuffleEnabled) {
+      // ========== NO SHUFFLE ==========
+      if (!isLastSong) {
+        // Not last song: move to next
+        _currentIndex++;
+        _markCurrentAsPlayed();
+        _notifyChange();
+        return currentSong;
+      }
+
+      // Last song
+      if (_repeatMode == RepeatMode.queue) {
+        // Loop back to first song
+        _currentIndex = 0;
+        _markCurrentAsPlayed();
+        _notifyChange();
+        return currentSong;
+      } else {
+        // RepeatMode.off: Stop playback
+        return null;
+      }
+    } else {
+      // ========== SHUFFLE ENABLED ==========
+      // Check if all songs have been played
+      final allPlayed = _queue.every((s) => _playedIds.contains(s.id));
+
+      if (!allPlayed) {
+        // Pick random unplayed song
+        final unplayedIndices = <int>[];
+        for (int i = 0; i < _queue.length; i++) {
+          if (!_playedIds.contains(_queue[i].id)) {
+            unplayedIndices.add(i);
+          }
+        }
+        _currentIndex =
+            unplayedIndices[_random.nextInt(unplayedIndices.length)];
+        _markCurrentAsPlayed();
+        _notifyChange();
+        return currentSong;
+      }
+
+      // All songs played
+      if (_repeatMode == RepeatMode.queue) {
+        // Reshuffle and start over
+        _playedIds.clear();
+        _shuffleQueue(keepCurrent: false);
+        _currentIndex = 0;
+        _markCurrentAsPlayed();
+        _notifyChange();
+        return currentSong;
+      } else {
+        // RepeatMode.off with shuffle: fetch random songs from DB
+        await _fetchAndReplaceWithRandomSongs();
+        if (_queue.isNotEmpty) {
+          _currentIndex = 0;
+          _markCurrentAsPlayed();
+          _notifyChange();
+          return currentSong;
+        }
+        return null;
+      }
+    }
+  }
+
+  /// Move to next song (manual skip)
+  Song? moveToNext() {
+    if (_queue.isEmpty) return null;
+
+    if (_repeatMode == RepeatMode.one) {
+      // Even in repeat one, manual skip should move to next
+      _currentIndex = (_currentIndex + 1) % _queue.length;
+    } else if (_isShuffleEnabled) {
+      // Pick random different song
+      if (_queue.length > 1) {
+        int newIndex;
+        do {
+          newIndex = _random.nextInt(_queue.length);
+        } while (newIndex == _currentIndex);
+        _currentIndex = newIndex;
+      }
+    } else {
+      _currentIndex = (_currentIndex + 1) % _queue.length;
+    }
+
+    _markCurrentAsPlayed();
+    _notifyChange();
+    return currentSong;
+  }
+
+  /// Move to previous song
+  Song? moveToPrevious() {
+    if (_queue.isEmpty) return null;
+
     if (_currentIndex > 0) {
       _currentIndex--;
-    } else if (_repeatMode == RepeatMode.queue) {
+    } else {
       _currentIndex = _queue.length - 1;
     }
 
+    _notifyChange();
     return currentSong;
   }
 
@@ -189,6 +269,7 @@ class QueueService {
     if (index >= 0 && index < _queue.length) {
       _currentIndex = index;
       _markCurrentAsPlayed();
+      _notifyChange();
     }
   }
 
@@ -211,6 +292,7 @@ class QueueService {
     } else {
       _restoreOriginalOrder();
     }
+    _notifyChange();
   }
 
   /// Set shuffle mode
@@ -228,9 +310,9 @@ class QueueService {
 
     if (keepCurrent && current != null) {
       // Move current song to the front
-      final currentIndex = _queue.indexWhere((s) => s.id == current.id);
-      if (currentIndex != -1 && currentIndex != 0) {
-        _queue.removeAt(currentIndex);
+      final currentIdx = _queue.indexWhere((s) => s.id == current.id);
+      if (currentIdx != -1 && currentIdx != 0) {
+        _queue.removeAt(currentIdx);
         _queue.insert(0, current);
       }
       _currentIndex = 0;
@@ -243,37 +325,11 @@ class QueueService {
   void _restoreOriginalOrder() {
     final current = currentSong;
     _queue = List.from(_originalQueue);
-    
+
     if (current != null) {
       _currentIndex = _queue.indexWhere((s) => s.id == current.id);
       if (_currentIndex == -1) _currentIndex = 0;
     }
-  }
-
-  Song? _getNextShuffled({required bool allowLoop}) {
-    // Find songs not played yet
-    final unplayed = <int>[];
-    for (int i = 0; i < _queue.length; i++) {
-      if (!_playedIds.contains(_queue[i].id)) {
-        unplayed.add(i);
-      }
-    }
-
-    if (unplayed.isEmpty) {
-      if (allowLoop) {
-        // Reset and start over
-        _playedIds.clear();
-        _currentIndex = _random.nextInt(_queue.length);
-        _markCurrentAsPlayed();
-        return currentSong;
-      }
-      return null;
-    }
-
-    // Pick random unplayed song
-    _currentIndex = unplayed[_random.nextInt(unplayed.length)];
-    _markCurrentAsPlayed();
-    return currentSong;
   }
 
   // ==================== REPEAT MODE ====================
@@ -281,6 +337,7 @@ class QueueService {
   /// Set repeat mode
   void setRepeatMode(RepeatMode mode) {
     _repeatMode = mode;
+    _notifyChange();
   }
 
   /// Cycle through repeat modes
@@ -296,6 +353,7 @@ class QueueService {
         _repeatMode = RepeatMode.off;
         break;
     }
+    _notifyChange();
   }
 
   // ==================== HELPERS ====================
@@ -306,17 +364,17 @@ class QueueService {
     }
   }
 
-  /// Fetch random songs from database and add to queue
-  Future<void> _fetchRandomSongs() async {
+  /// Fetch random songs from database and REPLACE the queue
+  Future<void> _fetchAndReplaceWithRandomSongs() async {
     try {
-      final randomSongs = await _supabaseService.getRandomSongs(10);
+      final randomSongs = await _supabaseService.getRandomSongs(5);
       final newSongs = randomSongs.map((json) => Song.fromJson(json)).toList();
-      
-      for (final song in newSongs) {
-        if (!_queue.any((s) => s.id == song.id)) {
-          _queue.add(song);
-          _originalQueue.add(song);
-        }
+
+      if (newSongs.isNotEmpty) {
+        _queue = newSongs;
+        _originalQueue = List.from(newSongs);
+        _currentIndex = 0;
+        _playedIds.clear();
       }
     } catch (e) {
       print('Error fetching random songs: $e');
@@ -326,5 +384,10 @@ class QueueService {
   /// Convert queue to player format for AudioPlayerService
   List<Map<String, dynamic>> toPlayerFormat() {
     return _queue.map((s) => s.toPlayerFormat()).toList();
+  }
+
+  /// Dispose resources
+  void dispose() {
+    _queueChangeController.close();
   }
 }

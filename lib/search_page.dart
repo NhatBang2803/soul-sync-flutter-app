@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'components/bottom_nav_bar.dart';
 import 'components/add_to_playlist_dialog.dart';
+import 'components/artist_card.dart';
 import 'models/models.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
@@ -430,7 +431,20 @@ class _SearchPageState extends State<SearchPage> {
                   scrollDirection: Axis.horizontal,
                   itemCount: _randomArtists.length,
                   itemBuilder: (context, index) {
-                    return _buildArtistItem(_randomArtists[index]);
+                    final artist = _randomArtists[index];
+                    // Using reusable ArtistCard component
+                    return ArtistCard(
+                      artist: artist,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ArtistPage(artistId: artist.id),
+                          ),
+                        );
+                      },
+                    );
                   },
                 ),
               ),
@@ -572,58 +586,23 @@ class _SearchPageState extends State<SearchPage> {
             scrollDirection: Axis.horizontal,
             itemCount: _artistResults.length,
             itemBuilder: (context, index) {
-              return _buildArtistItem(_artistResults[index]);
+              final artist = _artistResults[index];
+              // Using reusable ArtistCard component
+              return ArtistCard(
+                artist: artist,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ArtistPage(artistId: artist.id),
+                    ),
+                  );
+                },
+              );
             },
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildArtistItem(Artist artist) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ArtistPage(artistId: artist.id),
-          ),
-        );
-      },
-      child: Container(
-        width: 90,
-        margin: const EdgeInsets.only(right: 12),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 35,
-              backgroundColor: AppColors.surface,
-              backgroundImage: artist.imageUrl != null
-                  ? NetworkImage(artist.imageUrl!)
-                  : null,
-              child: artist.imageUrl == null
-                  ? const Icon(
-                      Icons.person,
-                      size: 30,
-                      color: AppColors.textMuted,
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              artist.name,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
     );
   }
 

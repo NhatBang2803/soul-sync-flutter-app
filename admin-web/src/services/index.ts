@@ -173,6 +173,47 @@ export const albumService = {
         if (error) throw error
         await supabase.from('albums').update({ song_count: count || 0 }).eq('id', albumId)
     },
+
+    async syncArtistsFromSongs(albumId: string) {
+        // Get all songs in this album
+        const { data: albumSongs, error: songsError } = await supabase
+            .from('album_songs')
+            .select('song_id')
+            .eq('album_id', albumId)
+        if (songsError) throw songsError
+
+        if (!albumSongs || albumSongs.length === 0) return
+
+        // Get all artists from these songs
+        const songIds = albumSongs.map(s => s.song_id)
+        const { data: songArtists, error: artistsError } = await supabase
+            .from('song_artists')
+            .select('artist_id')
+            .in('song_id', songIds)
+        if (artistsError) throw artistsError
+
+        if (!songArtists || songArtists.length === 0) return
+
+        // Collect unique artist IDs
+        const uniqueArtistIds = [...new Set(songArtists.map(sa => sa.artist_id))]
+
+        // Get existing album artists
+        const { data: existingArtists } = await supabase
+            .from('album_artists')
+            .select('artist_id')
+            .eq('album_id', albumId)
+
+        const existingIds = new Set(existingArtists?.map(a => a.artist_id) || [])
+
+        // Add only new artists (avoid duplicates)
+        const newArtistIds = uniqueArtistIds.filter(id => !existingIds.has(id))
+
+        if (newArtistIds.length > 0) {
+            await supabase.from('album_artists').insert(
+                newArtistIds.map(artistId => ({ album_id: albumId, artist_id: artistId }))
+            )
+        }
+    },
 }
 
 // ============ SONGS ============
@@ -272,6 +313,8 @@ export const songService = {
         if (error) throw error
         // Update album song count
         await albumService.updateSongCount(albumId)
+        // Auto-sync album artists from all songs in this album
+        await albumService.syncArtistsFromSongs(albumId)
     },
 
     async getAlbum(songId: string) {

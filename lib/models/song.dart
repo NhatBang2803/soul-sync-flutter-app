@@ -28,7 +28,8 @@ class Song {
   });
 
   /// Get primary artist name (first in list)
-  String get artist => artistNames.isNotEmpty ? artistNames.first : 'Unknown Artist';
+  String get artist =>
+      artistNames.isNotEmpty ? artistNames.first : 'Unknown Artist';
 
   /// Get all artists as comma-separated string
   String get allArtists => artistNames.join(', ');
@@ -42,7 +43,8 @@ class Song {
     List<String> artistNames = [];
     List<String> artistIds = [];
 
-    if (json['artist_names_array'] != null && json['artist_names_array'] is List) {
+    if (json['artist_names_array'] != null &&
+        json['artist_names_array'] is List) {
       artistNames = List<String>.from(json['artist_names_array']);
     } else if (json['artist_name'] != null) {
       // Single artist name (could be comma-separated from STRING_AGG)
@@ -55,7 +57,9 @@ class Song {
     }
 
     if (json['artist_ids'] != null && json['artist_ids'] is List) {
-      artistIds = List<String>.from(json['artist_ids'].map((e) => e.toString()));
+      artistIds = List<String>.from(
+        json['artist_ids'].map((e) => e.toString()),
+      );
     } else if (json['artist_id'] != null) {
       artistIds = [json['artist_id'].toString()];
     }
@@ -73,6 +77,34 @@ class Song {
       playCount: json['play_count'] ?? 0,
       genre: json['genre_name'] ?? json['genre'],
       isLiked: json['is_liked'] ?? false,
+    );
+  }
+
+  /// Create Song from player format (camelCase from AudioPlayerService)
+  factory Song.fromPlayerFormat(Map<String, dynamic> json) {
+    List<String> artistNames = [];
+
+    if (json['artistNames'] != null && json['artistNames'] is List) {
+      artistNames = List<String>.from(json['artistNames']);
+    } else if (json['artistName'] != null) {
+      final name = json['artistName'].toString();
+      artistNames = name.contains(',') ? name.split(', ') : [name];
+    } else {
+      artistNames = ['Unknown Artist'];
+    }
+
+    return Song(
+      id: json['id']?.toString() ?? '',
+      title: json['songName'] ?? json['title'] ?? 'Unknown',
+      artistNames: artistNames,
+      artistIds: [],
+      album: json['albumName'] ?? json['album_name'],
+      albumId: json['albumId']?.toString(),
+      duration: json['duration'] ?? 0,
+      coverUrl: json['coverUrl'] ?? json['cover_url'],
+      audioUrl: json['audioUrl'] ?? json['audio_url'],
+      playCount: 0,
+      isLiked: false,
     );
   }
 
