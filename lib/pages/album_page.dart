@@ -3,6 +3,7 @@ import '../models/models.dart';
 import '../services/supabase_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/queue_service.dart';
+import '../services/auth_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
 import '../components/add_to_playlist_dialog.dart';
@@ -20,11 +21,13 @@ class _AlbumPageState extends State<AlbumPage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AudioPlayerService _audioService = AudioPlayerService();
   final QueueService _queueService = QueueService();
+  final AuthService _authService = AuthService();
 
   Album? _album;
   List<Song> _songs = [];
   List<Album> _suggestedAlbums = [];
   bool _isLoading = true;
+  bool _isAlbumLiked = false;
   String? _error;
 
   @override
@@ -61,6 +64,7 @@ class _AlbumPageState extends State<AlbumPage> {
               .toList();
           _isLoading = false;
         });
+        _checkIfAlbumLiked();
       }
     } catch (e) {
       if (mounted) {
@@ -69,6 +73,34 @@ class _AlbumPageState extends State<AlbumPage> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _checkIfAlbumLiked() async {
+    final userId = _authService.currentUserId;
+    if (userId == null || _album == null) return;
+
+    final isLiked = await _supabaseService.isAlbumLiked(userId, _album!.id);
+    if (mounted) {
+      setState(() => _isAlbumLiked = isLiked);
+    }
+  }
+
+  Future<void> _toggleAlbumLike() async {
+    final userId = _authService.currentUserId;
+    if (userId == null || _album == null) return;
+
+    try {
+      if (_isAlbumLiked) {
+        await _supabaseService.unlikeAlbum(userId, _album!.id);
+      } else {
+        await _supabaseService.likeAlbum(userId, _album!.id);
+      }
+      if (mounted) {
+        setState(() => _isAlbumLiked = !_isAlbumLiked);
+      }
+    } catch (e) {
+      // Handle error silently
     }
   }
 
@@ -316,6 +348,13 @@ class _AlbumPageState extends State<AlbumPage> {
             ),
           ),
           const SizedBox(width: 12),
+          IconButton(
+            icon: Icon(
+              _isAlbumLiked ? Icons.favorite : Icons.favorite_border,
+              color: _isAlbumLiked ? Colors.red : AppColors.textPrimary,
+            ),
+            onPressed: _toggleAlbumLike,
+          ),
           IconButton(
             icon: const Icon(Icons.shuffle, color: AppColors.textPrimary),
             onPressed: () {

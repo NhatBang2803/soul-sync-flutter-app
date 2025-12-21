@@ -23,11 +23,12 @@ class _LibraryPageState extends State<LibraryPage> {
   final AudioPlayerService _audioService = AudioPlayerService();
   final AuthService _authService = AuthService();
 
-  int _activeFilterIndex = 0; // 0=all, 1=playlists, 2=albums, 3=liked
+  int _activeFilterIndex =
+      0; // 0=all, 1=playlists, 2=albums (liked), 3=songs (liked)
 
   List<Playlist> _playlists = [];
-  List<Album> _albums = [];
   List<Song> _likedSongs = [];
+  List<Album> _likedAlbums = [];
   bool _isLoading = true;
   String? _error;
 
@@ -35,7 +36,7 @@ class _LibraryPageState extends State<LibraryPage> {
     AppStrings.all,
     AppStrings.playlist,
     AppStrings.album,
-    AppStrings.liked,
+    'Bài hát',
   ];
 
   @override
@@ -59,10 +60,13 @@ class _LibraryPageState extends State<LibraryPage> {
         userId != null
             ? _supabaseService.getUserPlaylists(userId)
             : Future.value(<Map<String, dynamic>>[]),
-        _supabaseService.getAlbums(),
         // Lấy bài hát đã yêu thích của user
         userId != null
             ? _supabaseService.getLikedSongs(userId)
+            : Future.value(<Map<String, dynamic>>[]),
+        // Lấy album đã yêu thích của user
+        userId != null
+            ? _supabaseService.getLikedAlbums(userId)
             : Future.value(<Map<String, dynamic>>[]),
       ]);
 
@@ -71,11 +75,11 @@ class _LibraryPageState extends State<LibraryPage> {
           _playlists = (results[0] as List)
               .map((json) => Playlist.fromJson(json))
               .toList();
-          _albums = (results[1] as List)
-              .map((json) => Album.fromJson(json))
-              .toList();
-          _likedSongs = (results[2] as List)
+          _likedSongs = (results[1] as List)
               .map((json) => Song.fromJson(json))
+              .toList();
+          _likedAlbums = (results[2] as List)
+              .map((json) => Album.fromJson(json))
               .toList();
           _isLoading = false;
         });
@@ -99,6 +103,38 @@ class _LibraryPageState extends State<LibraryPage> {
         context,
         MaterialPageRoute(builder: (context) => const NowPlayingPage()),
       );
+    }
+  }
+
+  Future<void> _unlikeSong(Song song) async {
+    final userId = _authService.currentUserId;
+    if (userId == null) return;
+
+    try {
+      await _supabaseService.unlikeSong(userId, song.id);
+      if (mounted) {
+        setState(() {
+          _likedSongs.removeWhere((s) => s.id == song.id);
+        });
+      }
+    } catch (e) {
+      // Handle error silently
+    }
+  }
+
+  Future<void> _unlikeAlbum(Album album) async {
+    final userId = _authService.currentUserId;
+    if (userId == null) return;
+
+    try {
+      await _supabaseService.unlikeAlbum(userId, album.id);
+      if (mounted) {
+        setState(() {
+          _likedAlbums.removeWhere((a) => a.id == album.id);
+        });
+      }
+    } catch (e) {
+      // Handle error silently
     }
   }
 
@@ -169,13 +205,18 @@ class _LibraryPageState extends State<LibraryPage> {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         children: [
-          if (_activeFilterIndex == 0 || _activeFilterIndex == 3)
-            _buildLikedSongsCard(),
+          // Show cards only in "All" view
+          if (_activeFilterIndex == 0) _buildLikedSongsCard(),
+          if (_activeFilterIndex == 0) _buildLikedAlbumsCard(),
+          // Playlists section
           if (_activeFilterIndex == 0 || _activeFilterIndex == 1)
             _buildPlaylistsSection(),
+          // Liked albums section (filter 2 = Album)
           if (_activeFilterIndex == 0 || _activeFilterIndex == 2)
-            _buildAlbumsSection(),
-          if (_activeFilterIndex == 3) _buildLikedSongsList(),
+            _buildLikedAlbumsSection(),
+          // Liked songs section (filter 3 = Bài hát)
+          if (_activeFilterIndex == 0 || _activeFilterIndex == 3)
+            _buildLikedSongsSection(),
           const SizedBox(height: 100),
         ],
       ),
@@ -197,7 +238,9 @@ class _LibraryPageState extends State<LibraryPage> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => setState(() => _activeFilterIndex = 3),
+            onTap: () => setState(
+              () => _activeFilterIndex = 3,
+            ), // Navigate to Bài hát filter
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -337,7 +380,7 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildAlbumsSection() {
+  Widget _buildLikedAlbumsSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -348,7 +391,7 @@ class _LibraryPageState extends State<LibraryPage> {
               Icon(Icons.album, color: AppColors.textMuted, size: 20),
               SizedBox(width: 8),
               Text(
-                AppStrings.album,
+                'Album yêu thích',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 18,
@@ -358,16 +401,16 @@ class _LibraryPageState extends State<LibraryPage> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_albums.isEmpty)
+          if (_likedAlbums.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16.0),
               child: Text(
-                AppStrings.noAlbum,
+                'Chưa có album yêu thích',
                 style: TextStyle(color: AppColors.textMuted),
               ),
             )
           else
-            ..._albums.map(_buildAlbumItem),
+            ..._likedAlbums.map(_buildAlbumItem),
         ],
       ),
     );
@@ -414,6 +457,10 @@ class _LibraryPageState extends State<LibraryPage> {
                 ],
               ),
             ),
+            IconButton(
+              icon: const Icon(Icons.favorite, color: Colors.red, size: 20),
+              onPressed: () => _unlikeAlbum(album),
+            ),
             const Icon(Icons.chevron_right, color: AppColors.textMuted),
           ],
         ),
@@ -421,7 +468,7 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildLikedSongsList() {
+  Widget _buildLikedSongsSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -452,9 +499,79 @@ class _LibraryPageState extends State<LibraryPage> {
                 song: song.toPlayerFormat(),
                 isLiked: true,
                 onTap: () => _onSongTap(song, index),
+                onLikeTap: () => _unlikeSong(song),
               );
             }),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLikedAlbumsCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFEC4899), Color(0xFFF97316)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => setState(
+              () => _activeFilterIndex = 2,
+            ), // Navigate to Album filter
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.album,
+                      color: AppColors.textPrimary,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Album yêu thích',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_likedAlbums.length} album',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -488,6 +488,51 @@ class SupabaseService {
         .toList();
   }
 
+  // ==================== LIKED ALBUMS ====================
+
+  /// Kiểm tra đã like album chưa
+  Future<bool> isAlbumLiked(String userId, String albumId) async {
+    final response = await client
+        .from('user_liked_albums')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('album_id', albumId)
+        .maybeSingle();
+    return response != null;
+  }
+
+  /// Like album
+  Future<void> likeAlbum(String userId, String albumId) async {
+    await client.from('user_liked_albums').upsert({
+      'user_id': userId,
+      'album_id': albumId,
+      'liked_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Unlike album
+  Future<void> unlikeAlbum(String userId, String albumId) async {
+    await client
+        .from('user_liked_albums')
+        .delete()
+        .eq('user_id', userId)
+        .eq('album_id', albumId);
+  }
+
+  /// Lấy danh sách album đã like
+  Future<List<Map<String, dynamic>>> getLikedAlbums(String userId) async {
+    final response = await client
+        .from('user_liked_albums')
+        .select('album_id, albums_with_artists(*)')
+        .eq('user_id', userId)
+        .order('liked_at', ascending: false);
+    return response
+        .map<Map<String, dynamic>>(
+          (r) => r['albums_with_artists'] as Map<String, dynamic>,
+        )
+        .toList();
+  }
+
   // ==================== LISTENING HISTORY ====================
 
   /// Lấy lịch sử nghe gần đây

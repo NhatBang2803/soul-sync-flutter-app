@@ -51,12 +51,26 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
+      // Use AuthService.signIn which handles both Supabase Auth and custom password hash
+      final result = await _authService.signIn(
+        identifier: email,
         password: password,
       );
-    } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+
+      if (result.success) {
+        // If we have a user profile but not a Supabase session,
+        // we need to notify auth state listeners manually
+        if (result.user != null &&
+            Supabase.instance.client.auth.currentSession == null) {
+          // Navigate to main screen directly since custom auth was used
+          if (mounted) {
+            Navigator.of(context).pushReplacementNamed('/main');
+          }
+        }
+        // Otherwise, AuthWrapper will automatically redirect on auth state change
+      } else {
+        setState(() => _errorMessage = result.message);
+      }
     } catch (e) {
       setState(() => _errorMessage = 'Đã xảy ra lỗi: $e');
     } finally {

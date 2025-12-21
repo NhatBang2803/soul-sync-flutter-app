@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart' as app_user;
 
@@ -116,50 +118,122 @@ class AuthService {
     required String password,
   }) async {
     try {
+      print('=== DEBUG LOGIN ===');
+      print('Identifier: $identifier');
+
       if (identifier.isEmpty || password.isEmpty) {
         return AuthResult.failure('Vui lòng điền đầy đủ thông tin');
       }
 
       String email = identifier;
+      Map<String, dynamic>? userRecord;
 
       // Check if identifier is username (no @) or email (has @)
       if (!identifier.contains('@')) {
-        // It's a username, look up the email
-        final userRecord = await _client
+        // It's a username, look up the user
+        print('Looking up username: $identifier');
+        userRecord = await _client
             .from('users')
-            .select('email')
+            .select('*')
             .eq('username', identifier)
             .maybeSingle();
 
         if (userRecord == null) {
+          print('Username not found!');
           return AuthResult.failure('Username không tồn tại');
         }
-
         email = userRecord['email'];
+        print('Found email: $email');
+      } else {
+        // Email lookup
+        print('Looking up email: $identifier');
+        userRecord = await _client
+            .from('users')
+            .select('*')
+            .eq('email', identifier)
+            .maybeSingle();
+
+        if (userRecord == null) {
+          print('Email not found!');
+          return AuthResult.failure('Email không tồn tại');
+        }
       }
 
-      // Sign in with email and password
-      final response = await _client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      print('User record found: ${userRecord['id']}');
+      print('Auth method: ${userRecord['auth_method']}');
+      print('Password hash: ${userRecord['password_hash']}');
 
-      if (response.user == null) {
-        return AuthResult.failure('Đăng nhập thất bại');
+      // Check auth method
+      final authMethod = userRecord['auth_method'] ?? 'local';
+
+      if (authMethod == 'google') {
+        return AuthResult.failure('Tài khoản này sử dụng Google để đăng nhập');
       }
 
-      // Get user profile
-      final userProfile = await getUserProfile(response.user!.id);
+      // For local auth, verify password hash
+      final storedHash = userRecord['password_hash'] as String?;
+
+      if (storedHash == null || storedHash.isEmpty) {
+        print('No password_hash, falling back to Supabase Auth');
+        // No password set, try Supabase Auth as fallback
+        try {
+          final response = await _client.auth.signInWithPassword(
+            email: email,
+            password: password,
+          );
+          if (response.user != null) {
+            final userProfile = await getUserProfile(response.user!.id);
+            return AuthResult.success(
+              user: userProfile,
+              message: 'Đăng nhập thành công!',
+            );
+          }
+        } catch (e) {
+          print('Supabase Auth failed: $e');
+          return AuthResult.failure('Mật khẩu không đúng');
+        }
+      }
+
+      // Verify password with custom hash
+      print('Verifying custom password hash...');
+      final isValidPassword = _verifyPasswordHash(password, storedHash!);
+      print('Password valid: $isValidPassword');
+
+      if (!isValidPassword) {
+        return AuthResult.failure('Mật khẩu không đúng');
+      }
+
+      // Password verified! Create a session using Supabase anonymous or custom token
+      // For now, we'll use a workaround: sign in without session but return user profile
+      final userProfile = app_user.User.fromJson(userRecord);
 
       return AuthResult.success(
         user: userProfile,
         message: 'Đăng nhập thành công!',
       );
     } on AuthException catch (e) {
+      print('AuthException: ${e.message}');
       return AuthResult.failure(_mapAuthError(e.message));
     } catch (e) {
+      print('Exception: $e');
       return AuthResult.failure('Đã xảy ra lỗi: ${e.toString()}');
     }
+  }
+
+  /// Verify password against stored hash (salt:hash format from admin-web)
+  bool _verifyPasswordHash(String password, String storedHash) {
+    final parts = storedHash.split(':');
+    if (parts.length != 2) return false;
+
+    final salt = parts[0];
+    final originalHash = parts[1];
+
+    // Hash password with salt using SHA-256 (same as admin-web)
+    final bytes = utf8.encode(salt + password);
+    final digest = sha256.convert(bytes);
+    final hashHex = digest.toString();
+
+    return hashHex == originalHash;
   }
 
   // ==================== GOOGLE SIGN IN ====================

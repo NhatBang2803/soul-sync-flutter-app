@@ -162,6 +162,15 @@ CREATE TABLE user_liked_songs (
   UNIQUE(user_id, song_id)
 );
 
+-- User liked albums (liking an album does NOT mean liking all songs in it)
+CREATE TABLE user_liked_albums (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  album_id UUID NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+  liked_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, album_id)
+);
+
 -- Listening history
 CREATE TABLE listening_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -200,6 +209,8 @@ CREATE INDEX idx_song_genres_genre ON song_genres(genre_id);
 CREATE INDEX idx_playlist_songs_playlist ON playlist_songs(playlist_id);
 CREATE INDEX idx_user_follows_user ON user_follows(user_id);
 CREATE INDEX idx_user_follows_artist ON user_follows(artist_id);
+CREATE INDEX idx_user_liked_albums_user ON user_liked_albums(user_id);
+CREATE INDEX idx_user_liked_albums_album ON user_liked_albums(album_id);
 CREATE INDEX idx_listening_history_user ON listening_history(user_id);
 CREATE INDEX idx_listening_history_song ON listening_history(song_id);
 CREATE INDEX idx_listening_history_time ON listening_history(listened_at DESC);
@@ -320,6 +331,7 @@ ALTER TABLE song_genres ENABLE ROW LEVEL SECURITY;
 ALTER TABLE playlist_songs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_liked_songs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_liked_albums ENABLE ROW LEVEL SECURITY;
 ALTER TABLE listening_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
 
@@ -344,6 +356,7 @@ CREATE POLICY "Owner manages playlist songs" ON playlist_songs FOR ALL
 -- User interaction policies
 CREATE POLICY "User manages follows" ON user_follows FOR ALL USING (user_id = auth.uid());
 CREATE POLICY "User manages likes" ON user_liked_songs FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "User manages album likes" ON user_liked_albums FOR ALL USING (user_id = auth.uid());
 CREATE POLICY "User manages history" ON listening_history FOR ALL USING (user_id = auth.uid() OR user_id IS NULL);
 CREATE POLICY "Read reset tokens" ON password_reset_tokens FOR SELECT USING (true);
 
