@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'services/audio_player_service.dart';
@@ -18,7 +19,8 @@ class NowPlayingPage extends StatefulWidget {
   State<NowPlayingPage> createState() => _NowPlayingPageState();
 }
 
-class _NowPlayingPageState extends State<NowPlayingPage> {
+class _NowPlayingPageState extends State<NowPlayingPage>
+    with TickerProviderStateMixin {
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
   final QueueService _queueService = QueueService();
   final SupabaseService _supabaseService = SupabaseService();
@@ -27,6 +29,12 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   late StreamSubscription<PlayerState> _playerStateSubscription;
   late StreamSubscription<Duration> _positionSubscription;
   late StreamSubscription<Duration?> _durationSubscription;
+
+  // Gradient animation controllers
+  late AnimationController _gradientController;
+  late AnimationController _pulseController;
+  Timer? _pulseTimer;
+  final Random _random = Random();
 
   bool _isPlaying = false;
   Duration _position = Duration.zero;
@@ -37,9 +45,56 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   @override
   void initState() {
     super.initState();
+    _initAnimations();
     _initPlayerState();
     _setupListeners();
     _checkIfLiked();
+  }
+
+  void _initAnimations() {
+    // Main gradient color cycling (slow, continuous)
+    _gradientController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    )..repeat();
+
+    // Pulse animation for "beat" effect
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+      value: 0.3, // Start at base level
+    );
+  }
+
+  void _startPulseSimulation() {
+    _pulseTimer?.cancel();
+    // Simulate audio reactivity with random pulses
+    _pulseTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+      if (_isPlaying && mounted) {
+        // Random intensity to simulate audio levels
+        final intensity = 0.3 + _random.nextDouble() * 0.7;
+        _pulseController.animateTo(
+          intensity,
+          duration: const Duration(milliseconds: 100),
+        );
+        Future.delayed(const Duration(milliseconds: 80), () {
+          if (mounted) {
+            _pulseController.animateTo(
+              0.3,
+              duration: const Duration(milliseconds: 150),
+            );
+          }
+        });
+      }
+    });
+  }
+
+  void _stopPulseSimulation() {
+    _pulseTimer?.cancel();
+    _pulseController.animateTo(
+      0.3,
+      duration: const Duration(milliseconds: 300),
+    );
   }
 
   void _initPlayerState() {
@@ -47,6 +102,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     _isPlaying = _audioPlayerService.isPlaying;
     _position = _audioPlayerService.position;
     _duration = _audioPlayerService.duration;
+    if (_isPlaying) {
+      _startPulseSimulation();
+    }
   }
 
   void _setupListeners() {
@@ -56,10 +114,17 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
       if (mounted) {
         final newSong = _audioPlayerService.currentSong;
         final songChanged = _currentSong?['id'] != newSong?['id'];
+        final wasPlaying = _isPlaying;
         setState(() {
           _isPlaying = state.playing;
           _currentSong = newSong;
         });
+        // Start/stop pulse animation based on playing state
+        if (state.playing && !wasPlaying) {
+          _startPulseSimulation();
+        } else if (!state.playing && wasPlaying) {
+          _stopPulseSimulation();
+        }
         // Re-check like status when song changes
         if (songChanged) {
           _checkIfLiked();
@@ -125,6 +190,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
 
   @override
   void dispose() {
+    _pulseTimer?.cancel();
+    _gradientController.dispose();
+    _pulseController.dispose();
     _playerStateSubscription.cancel();
     _positionSubscription.cancel();
     _durationSubscription.cancel();
@@ -266,29 +334,143 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 
   Widget _buildAlbumArt(String? coverUrl) {
-    return Container(
-      width: 280,
-      height: 280,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.3),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
+    return AnimatedBuilder(
+      animation: Listenable.merge([_gradientController, _pulseController]),
+      builder: (context, child) {
+        // Calculate gradient colors based on animation
+        final colorProgress = _gradientController.value;
+        final pulseIntensity = _pulseController.value;
+
+        // Gradient colors: green -> blue -> purple -> green
+        final Color color1;
+        final Color color2;
+        final Color color3;
+
+        if (colorProgress < 0.33) {
+          // Green to Blue
+          final t = colorProgress / 0.33;
+          color1 = Color.lerp(
+            const Color(0xFF23DD5B),
+            const Color(0xFF00C9FF),
+            t,
+          )!;
+          color2 = Color.lerp(
+            const Color(0xFF00C9FF),
+            const Color(0xFF8B5CF6),
+            t,
+          )!;
+          color3 = Color.lerp(
+            const Color(0xFF8B5CF6),
+            const Color(0xFF23DD5B),
+            t,
+          )!;
+        } else if (colorProgress < 0.66) {
+          // Blue to Purple
+          final t = (colorProgress - 0.33) / 0.33;
+          color1 = Color.lerp(
+            const Color(0xFF00C9FF),
+            const Color(0xFF8B5CF6),
+            t,
+          )!;
+          color2 = Color.lerp(
+            const Color(0xFF8B5CF6),
+            const Color(0xFF23DD5B),
+            t,
+          )!;
+          color3 = Color.lerp(
+            const Color(0xFF23DD5B),
+            const Color(0xFF00C9FF),
+            t,
+          )!;
+        } else {
+          // Purple to Green
+          final t = (colorProgress - 0.66) / 0.34;
+          color1 = Color.lerp(
+            const Color(0xFF8B5CF6),
+            const Color(0xFF23DD5B),
+            t,
+          )!;
+          color2 = Color.lerp(
+            const Color(0xFF23DD5B),
+            const Color(0xFF00C9FF),
+            t,
+          )!;
+          color3 = Color.lerp(
+            const Color(0xFF00C9FF),
+            const Color(0xFF8B5CF6),
+            t,
+          )!;
+        }
+
+        // Apply pulse to blur and opacity
+        final blurAmount = 30.0 + (pulseIntensity * 40.0);
+        final glowOpacity = 0.3 + (pulseIntensity * 0.4);
+
+        return Container(
+          width: 300,
+          height: 300,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Animated gradient glow behind the image
+              Container(
+                width: 280 + (pulseIntensity * 20),
+                height: 280 + (pulseIntensity * 20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: RadialGradient(
+                    colors: [
+                      color1.withOpacity(glowOpacity),
+                      color2.withOpacity(glowOpacity * 0.7),
+                      color3.withOpacity(glowOpacity * 0.3),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.4, 0.7, 1.0],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color1.withOpacity(glowOpacity),
+                      blurRadius: blurAmount,
+                      spreadRadius: 5,
+                    ),
+                    BoxShadow(
+                      color: color2.withOpacity(glowOpacity * 0.5),
+                      blurRadius: blurAmount * 1.5,
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+              ),
+              // Album art image
+              Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 15,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: coverUrl != null && coverUrl.isNotEmpty
+                      ? Image.network(
+                          coverUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildDefaultArt(),
+                        )
+                      : _buildDefaultArt(),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: coverUrl != null && coverUrl.isNotEmpty
-            ? Image.network(
-                coverUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildDefaultArt(),
-              )
-            : _buildDefaultArt(),
-      ),
+        );
+      },
     );
   }
 

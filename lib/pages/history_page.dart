@@ -48,21 +48,26 @@ class _HistoryPageState extends State<HistoryPage> {
         return;
       }
 
-      final history = await _supabaseService.getListeningHistory(userId, limit: 200);
-      
+      final history = await _supabaseService.getListeningHistory(
+        userId,
+        limit: 200,
+      );
+
       // Group by date
       final Map<String, List<HistoryItem>> grouped = {};
-      
+
       for (final item in history) {
         final historyItem = HistoryItem.fromJson(item);
         final dateKey = _formatDateKey(historyItem.listenedAt);
-        
+
         if (!grouped.containsKey(dateKey)) {
           grouped[dateKey] = [];
         }
-        
+
         // Avoid duplicates within same day
-        final exists = grouped[dateKey]!.any((h) => h.song.id == historyItem.song.id);
+        final exists = grouped[dateKey]!.any(
+          (h) => h.song.id == historyItem.song.id,
+        );
         if (!exists) {
           grouped[dateKey]!.add(historyItem);
         }
@@ -85,17 +90,23 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   String _formatDateKey(DateTime date) {
-    final now = DateTime.now();
+    // Convert to Vietnam timezone (UTC+7)
+    final vietnamTime = date.toUtc().add(const Duration(hours: 7));
+    final now = DateTime.now().toUtc().add(const Duration(hours: 7));
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final dateOnly = DateTime(date.year, date.month, date.day);
+    final dateOnly = DateTime(
+      vietnamTime.year,
+      vietnamTime.month,
+      vietnamTime.day,
+    );
 
     if (dateOnly == today) {
       return 'Hôm nay';
     } else if (dateOnly == yesterday) {
       return 'Hôm qua';
     } else {
-      return DateFormat('dd/MM/yyyy').format(date);
+      return DateFormat('dd/MM/yyyy').format(vietnamTime);
     }
   }
 
@@ -103,7 +114,7 @@ class _HistoryPageState extends State<HistoryPage> {
     // Only add this single song to queue
     _queueService.replaceQueue([song], startIndex: 0);
     _audioService.setPlaylist([song.toPlayerFormat()], 0);
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const NowPlayingPage()),
@@ -123,10 +134,7 @@ class _HistoryPageState extends State<HistoryPage> {
         ),
         title: const Text(
           'Lịch sử nghe',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -175,18 +183,12 @@ class _HistoryPageState extends State<HistoryPage> {
             const SizedBox(height: 16),
             Text(
               'Chưa có lịch sử nghe',
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 16,
-              ),
+              style: TextStyle(color: Colors.grey[400], fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
               'Bắt đầu nghe nhạc để xem lịch sử tại đây',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
           ],
         ),
@@ -230,7 +232,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _buildHistoryItem(HistoryItem item) {
     final song = item.song;
-    
+
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(4),
@@ -268,7 +270,9 @@ class _HistoryPageState extends State<HistoryPage> {
             onPressed: () => _showSongOptions(song),
           ),
           Text(
-            DateFormat('HH:mm').format(item.listenedAt),
+            DateFormat(
+              'HH:mm',
+            ).format(item.listenedAt.toUtc().add(const Duration(hours: 7))),
             style: TextStyle(color: Colors.grey[500], fontSize: 12),
           ),
         ],
@@ -341,7 +345,9 @@ class HistoryItem {
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
     return HistoryItem(
       song: Song.fromJson(json['song'] ?? json),
-      listenedAt: DateTime.parse(json['listened_at'] ?? DateTime.now().toIso8601String()),
+      listenedAt: DateTime.parse(
+        json['listened_at'] ?? DateTime.now().toIso8601String(),
+      ),
       durationPlayed: json['duration_played'] ?? 0,
       completed: json['completed'] ?? false,
     );
@@ -384,7 +390,7 @@ class SongOptionsSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Song info
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -403,7 +409,10 @@ class SongOptionsSheet extends StatelessWidget {
                           width: 56,
                           height: 56,
                           color: Colors.grey[800],
-                          child: const Icon(Icons.music_note, color: Colors.white),
+                          child: const Icon(
+                            Icons.music_note,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
                 const SizedBox(width: 12),
@@ -424,10 +433,7 @@ class SongOptionsSheet extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         song.allArtists,
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 14),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -437,10 +443,10 @@ class SongOptionsSheet extends StatelessWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
           const Divider(color: Colors.grey, height: 1),
-          
+
           // Options
           _buildOption(
             icon: Icons.playlist_add,
@@ -457,7 +463,7 @@ class SongOptionsSheet extends StatelessWidget {
             label: 'Thêm vào playlist',
             onTap: onAddToPlaylist,
           ),
-          
+
           const SizedBox(height: 24),
         ],
       ),
@@ -471,10 +477,7 @@ class SongOptionsSheet extends StatelessWidget {
   }) {
     return ListTile(
       leading: Icon(icon, color: Colors.white70),
-      title: Text(
-        label,
-        style: const TextStyle(color: Colors.white),
-      ),
+      title: Text(label, style: const TextStyle(color: Colors.white)),
       onTap: onTap,
     );
   }

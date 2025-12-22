@@ -621,31 +621,37 @@ class SupabaseService {
   }) async {
     final response = await client
         .from('listening_history')
-        .select('songs(album_songs(albums(*)))')
+        .select('songs(album_songs(album_id))')
         .eq('user_id', userId)
         .order('listened_at', ascending: false)
         .limit(50);
 
-    // Extract unique albums
+    // Extract unique album IDs
     final albumIds = <String>{};
-    final albums = <Map<String, dynamic>>[];
 
     for (final record in response) {
       final song = record['songs'];
       if (song != null && song['album_songs'] != null) {
         for (final albumSong in song['album_songs']) {
-          final album = albumSong['albums'];
-          if (album != null && !albumIds.contains(album['id'])) {
-            albumIds.add(album['id']);
-            albums.add(album);
-            if (albums.length >= limit) break;
+          final albumId = albumSong['album_id']?.toString();
+          if (albumId != null && !albumIds.contains(albumId)) {
+            albumIds.add(albumId);
+            if (albumIds.length >= limit) break;
           }
         }
       }
-      if (albums.length >= limit) break;
+      if (albumIds.length >= limit) break;
     }
 
-    return albums;
+    if (albumIds.isEmpty) return [];
+
+    // Fetch albums with artist info from albums_with_artists view
+    final albums = await client
+        .from('albums_with_artists')
+        .select()
+        .inFilter('id', albumIds.toList());
+
+    return List<Map<String, dynamic>>.from(albums);
   }
 
   // ==================== SEARCH ====================

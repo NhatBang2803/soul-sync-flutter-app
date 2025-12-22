@@ -15,6 +15,7 @@ import 'pages/auth/login_screen.dart';
 import 'components/mini_player.dart';
 import 'services/audio_player_service.dart';
 import 'services/auth_service.dart';
+import 'services/queue_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -125,8 +126,10 @@ class _MainScreenState extends State<MainScreen> {
 
   // Audio service for tracking current song
   final AudioPlayerService _audioService = AudioPlayerService();
+  final QueueService _queueService = QueueService();
   StreamSubscription? _playingSubscription;
   StreamSubscription? _playerStateSubscription;
+  StreamSubscription? _queueSubscription;
 
   @override
   void initState() {
@@ -148,12 +151,20 @@ class _MainScreenState extends State<MainScreen> {
         setState(() {}); // Rebuild to show updated song info
       }
     });
+
+    // Listen to queue changes to show mini player when songs are added
+    _queueSubscription = _queueService.onQueueChanged.listen((_) {
+      if (mounted) {
+        setState(() {}); // Rebuild to show mini player when queue changes
+      }
+    });
   }
 
   @override
   void dispose() {
     _playingSubscription?.cancel();
     _playerStateSubscription?.cancel();
+    _queueSubscription?.cancel();
     super.dispose();
   }
 
@@ -164,6 +175,13 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _togglePlayPause() async {
+    // If audio player has no current song but queue has songs, sync queue to player first
+    if (_audioService.currentSong == null &&
+        _queueService.currentSong != null) {
+      // Sync queue to audio player
+      final playlist = _queueService.toPlayerFormat();
+      await _audioService.setPlaylist(playlist, _queueService.currentIndex);
+    }
     await _audioService.togglePlayPause();
   }
 
@@ -196,8 +214,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get current song from AudioPlayerService
-    final currentSong = _audioService.currentSong;
+    // Get current song from AudioPlayerService or QueueService
+    final currentSong =
+        _audioService.currentSong ?? _queueService.currentSongMap;
     final hasSong = currentSong != null;
 
     return Stack(
@@ -205,8 +224,7 @@ class _MainScreenState extends State<MainScreen> {
         // Main Content
         _getCurrentPage(),
 
-        // Mini Player - only show when there's a song playing
-        // Using MiniPlayerDynamic from components/mini_player.dart
+        // Mini Player - show when there's a song in queue or currently playing
         if (!_showNowPlaying && hasSong)
           Positioned(
             left: 0,

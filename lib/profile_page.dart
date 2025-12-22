@@ -4,10 +4,10 @@ import 'components/add_to_playlist_dialog.dart';
 import 'services/supabase_service.dart';
 import 'services/auth_service.dart';
 import 'models/models.dart';
+import 'models/user.dart' as app_user;
 import 'core/core.dart';
 import 'pages/artist_page.dart';
 import 'pages/album_page.dart';
-import 'pages/playlist_page.dart';
 import 'pages/history_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -23,9 +23,9 @@ class _ProfilePageState extends State<ProfilePage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AuthService _authService = AuthService();
 
+  app_user.User? _userProfile;
   List<Song> _recentlyPlayed = [];
   List<Artist> _followingArtists = [];
-  List<Playlist> _myPlaylists = [];
   List<Album> _recentAlbums = [];
   bool _isLoading = true;
 
@@ -42,25 +42,28 @@ class _ProfilePageState extends State<ProfilePage> {
       final userId = _authService.currentUserId;
 
       if (userId != null) {
+        // Load user profile first
+        final userProfile = await _authService.getUserProfile(userId);
+
         final results = await Future.wait([
-          _supabaseService.getRecentlyPlayed(userId, limit: 10),
+          _supabaseService.getListeningHistory(userId, limit: 10),
           _supabaseService.getFollowingArtists(userId),
-          _supabaseService.getUserPlaylists(userId),
           _supabaseService.getRecentlyPlayedAlbums(userId, limit: 10),
         ]);
 
         if (mounted) {
           setState(() {
+            _userProfile = userProfile;
+            // Extract songs from listening history
             _recentlyPlayed = (results[0] as List)
-                .map((json) => Song.fromJson(json))
+                .map(
+                  (item) => Song.fromJson(item['song'] as Map<String, dynamic>),
+                )
                 .toList();
             _followingArtists = (results[1] as List)
                 .map((json) => Artist.fromJson(json))
                 .toList();
-            _myPlaylists = (results[2] as List)
-                .map((json) => Playlist.fromJson(json))
-                .toList();
-            _recentAlbums = (results[3] as List)
+            _recentAlbums = (results[2] as List)
                 .map((json) => Album.fromJson(json))
                 .toList();
             _isLoading = false;
@@ -71,6 +74,7 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
+      print('Error loading profile data: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -94,8 +98,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildRecentlyPlayedSection(),
                     const SizedBox(height: 24),
                     _buildFollowingArtistsSection(),
-                    const SizedBox(height: 24),
-                    _buildMyPlaylistsSection(),
                     const SizedBox(height: 24),
                     _buildRecentAlbumsSection(),
                     const SizedBox(height: 28),
@@ -133,7 +135,26 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildProfileInfo() {
-    final user = _authService.currentAuthUser;
+    // Use profile from database, fallback to auth user metadata
+    final authUser = _authService.currentAuthUser;
+
+    // Determine display name
+    final displayName =
+        _userProfile?.displayName ??
+        _userProfile?.username ??
+        authUser?.userMetadata?['display_name'] ??
+        authUser?.userMetadata?['username'] ??
+        'Người dùng Soul Sync';
+
+    // Determine subtitle (username or email)
+    final subtitle =
+        _userProfile?.username != null && _userProfile!.username!.isNotEmpty
+        ? '@${_userProfile!.username}'
+        : (_userProfile?.email ?? authUser?.email ?? 'Chưa đăng nhập');
+
+    // Determine avatar URL
+    final avatarUrl =
+        _userProfile?.avatarUrl ?? authUser?.userMetadata?['avatar_url'];
 
     return Column(
       children: [
@@ -153,10 +174,10 @@ class _ProfilePageState extends State<ProfilePage> {
             child: CircleAvatar(
               radius: 47,
               backgroundColor: Colors.grey[800],
-              backgroundImage: user?.userMetadata?['avatar_url'] != null
-                  ? NetworkImage(user!.userMetadata!['avatar_url'])
+              backgroundImage: avatarUrl != null
+                  ? NetworkImage(avatarUrl)
                   : null,
-              child: user?.userMetadata?['avatar_url'] == null
+              child: avatarUrl == null
                   ? const Icon(Icons.person, size: 40, color: Colors.white)
                   : null,
             ),
@@ -164,9 +185,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 16),
         Text(
-          user?.userMetadata?['display_name'] ??
-              user?.userMetadata?['username'] ??
-              'Người dùng Soul Sync',
+          displayName,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -174,10 +193,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          user?.email ?? (user != null ? 'Đã đăng nhập' : 'Chưa đăng nhập'),
-          style: TextStyle(color: Colors.grey[400], fontSize: 14),
-        ),
+        Text(subtitle, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
       ],
     );
   }
@@ -273,7 +289,12 @@ class _ProfilePageState extends State<ProfilePage> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AddToPlaylistButton(songId: song.id, songTitle: song.title, song: song, size: 26),
+          AddToPlaylistButton(
+            songId: song.id,
+            songTitle: song.title,
+            song: song,
+            size: 26,
+          ),
           const SizedBox(width: 12),
           Text(
             song.formattedDuration,
@@ -299,12 +320,8 @@ class _ProfilePageState extends State<ProfilePage> {
   // ==================== FOLLOWING ARTISTS (HORIZONTAL SLIDER) ====================
 
   Widget _buildFollowingArtistsSection() {
-    // Get up to 5 random artists from the list
-    List<Artist> displayArtists = [];
-    if (_followingArtists.isNotEmpty) {
-      final shuffled = List<Artist>.from(_followingArtists)..shuffle();
-      displayArtists = shuffled.take(5).toList();
-    }
+    // Get up to 3 most recently followed artists (already sorted by followed_at desc)
+    final displayArtists = _followingArtists.take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,13 +340,13 @@ class _ProfilePageState extends State<ProfilePage> {
           )
         else
           SizedBox(
-            height: 140,
+            height: 110,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: displayArtists.length,
               itemBuilder: (context, index) {
-                return _buildArtistItem(displayArtists[index]);
+                return _buildArtistCircleItem(displayArtists[index]);
               },
             ),
           ),
@@ -337,7 +354,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildArtistItem(Artist artist) {
+  Widget _buildArtistCircleItem(Artist artist) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -348,208 +365,45 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       },
       child: Container(
-        width: 100,
-        margin: const EdgeInsets.only(right: 12),
+        width: 80,
+        margin: const EdgeInsets.only(right: 16),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 90,
-                height: 90,
-                color: Colors.grey[800],
-                child: artist.imageUrl != null
-                    ? Image.network(
-                        artist.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.person, size: 40, color: Colors.white),
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF23DD5B).withOpacity(0.5),
+                  width: 2,
+                ),
+              ),
+              child: CircleAvatar(
+                radius: 35,
+                backgroundColor: Colors.grey[800],
+                backgroundImage: artist.imageUrl != null
+                    ? NetworkImage(artist.imageUrl!)
+                    : null,
+                child: artist.imageUrl == null
+                    ? const Icon(Icons.person, size: 32, color: Colors.white)
+                    : null,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               artist.name,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 13,
+                fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==================== MY PLAYLISTS (HORIZONTAL SLIDER) ====================
-
-  Widget _buildMyPlaylistsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader('Playlist đã tạo', () {
-          // Navigate to all playlists
-        }),
-        const SizedBox(height: 8),
-        if (_myPlaylists.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Chưa tạo playlist nào',
-              style: TextStyle(color: Colors.grey),
-            ),
-          )
-        else
-          ..._myPlaylists.map(_buildPlaylistVerticalItem),
-      ],
-    );
-  }
-
-  Widget _buildPlaylistVerticalItem(Playlist playlist) {
-    return ListTile(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PlaylistPage(playlistId: playlist.id),
-          ),
-        );
-      },
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: playlist.coverUrl != null
-            ? Image.network(
-                playlist.coverUrl!,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildDefaultPlaylistCoverSmall(),
-              )
-            : _buildDefaultPlaylistCoverSmall(),
-      ),
-      title: Text(
-        playlist.name,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w500,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Row(
-        children: [
-          Icon(
-            playlist.isPublic ? Icons.public : Icons.lock,
-            size: 12,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '${playlist.songCount} bài',
-            style: TextStyle(color: Colors.grey[400], fontSize: 12),
-          ),
-        ],
-      ),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-    );
-  }
-
-  Widget _buildDefaultPlaylistCoverSmall() {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF7E22CE), Color(0xFF9333EA)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Icon(Icons.queue_music, size: 24, color: Colors.white70),
-    );
-  }
-
-  // Keep the old horizontal item for reference but not used
-  Widget _buildPlaylistItem(Playlist playlist) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PlaylistPage(playlistId: playlist.id),
-          ),
-        );
-      },
-      child: Container(
-        width: 130,
-        margin: const EdgeInsets.only(right: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: playlist.coverUrl != null
-                  ? Image.network(
-                      playlist.coverUrl!,
-                      width: 130,
-                      height: 130,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _buildDefaultPlaylistCover(),
-                    )
-                  : _buildDefaultPlaylistCover(),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              playlist.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            Row(
-              children: [
-                Icon(
-                  playlist.isPublic ? Icons.public : Icons.lock,
-                  size: 12,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${playlist.songCount} bài',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                ),
-              ],
-            ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildDefaultPlaylistCover() {
-    return Container(
-      width: 130,
-      height: 130,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF7E22CE), Color(0xFF9333EA)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Icon(Icons.queue_music, size: 50, color: Colors.white70),
     );
   }
 
