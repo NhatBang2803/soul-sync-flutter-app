@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
 import '../components/add_to_playlist_dialog.dart';
+import '../components/auto_mini_player.dart';
 
 class AlbumPage extends StatefulWidget {
   final String albumId;
@@ -100,9 +101,11 @@ class _AlbumPageState extends State<AlbumPage> {
         setState(() => _isAlbumLiked = !_isAlbumLiked);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_isAlbumLiked
-                ? 'Đã thêm album vào thư viện'
-                : 'Đã xóa album khỏi thư viện'),
+            content: Text(
+              _isAlbumLiked
+                  ? 'Đã thêm album vào thư viện'
+                  : 'Đã xóa album khỏi thư viện',
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -111,7 +114,9 @@ class _AlbumPageState extends State<AlbumPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi: Không thể ${_isAlbumLiked ? "bỏ thích" : "thích"} album. $e'),
+            content: Text(
+              'Lỗi: Không thể ${_isAlbumLiked ? "bỏ thích" : "thích"} album. $e',
+            ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -178,15 +183,20 @@ class _AlbumPageState extends State<AlbumPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(),
-          SliverToBoxAdapter(child: _buildAlbumInfo()),
-          SliverToBoxAdapter(child: _buildPlayButton()),
-          SliverToBoxAdapter(child: _buildSongsList()),
-          if (_suggestedAlbums.isNotEmpty)
-            SliverToBoxAdapter(child: _buildSuggestedAlbums()),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(child: _buildAlbumInfo()),
+              SliverToBoxAdapter(child: _buildPlayButton()),
+              SliverToBoxAdapter(child: _buildSongsList()),
+              if (_suggestedAlbums.isNotEmpty)
+                SliverToBoxAdapter(child: _buildSuggestedAlbums()),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
+          const AutoMiniPlayer(),
         ],
       ),
     );

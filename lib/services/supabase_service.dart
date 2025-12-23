@@ -154,7 +154,7 @@ class SupabaseService {
         .from('new_releases')
         .select()
         .order('created_at', ascending: false)
-        .limit(20);
+        .limit(10);
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -612,6 +612,20 @@ class SupabaseService {
         'song': song,
       };
     }).toList();
+  }
+
+  /// Lấy các bài hát duy nhất đã nghe gần đây (không trùng lặp)
+  Future<List<Map<String, dynamic>>> getRecentlyPlayedUniqueSongs(
+    String userId, {
+    int limit = 5,
+  }) async {
+    // Use raw SQL to get distinct songs ordered by most recent listen time
+    final response = await client.rpc(
+      'get_recently_played_unique_songs',
+      params: {'p_user_id': userId, 'p_limit': limit},
+    );
+
+    return List<Map<String, dynamic>>.from(response);
   }
 
   /// Lấy album nghe gần đây

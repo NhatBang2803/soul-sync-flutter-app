@@ -110,6 +110,69 @@ FROM information_schema.routines
 WHERE routine_schema = 'public';
 
 -- =====================
+-- Lấy 5 bài hát không trùng nhau từ db
+-- =====================
+DROP FUNCTION IF EXISTS get_recently_played_unique_songs(UUID, INTEGER);
+CREATE FUNCTION get_recently_played_unique_songs(
+  p_user_id UUID,
+  p_limit INTEGER DEFAULT 5
+)
+RETURNS TABLE (
+  id UUID,
+  title VARCHAR,
+  duration INTEGER,
+  audio_url TEXT,
+  cover_url TEXT,
+  play_count INTEGER,
+  artist_name TEXT,
+  artist_ids UUID[],
+  artist_names VARCHAR[]
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH ranked_songs AS (
+    SELECT 
+      s.id,
+      s.title,
+      s.duration,
+      s.audio_url,
+      s.cover_url,
+      s.play_count,
+      s.artist_name,
+      s.artist_ids,
+      s.artist_names,
+      ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY lh.listened_at DESC) as rn
+    FROM listening_history lh
+    INNER JOIN songs_with_artists s ON lh.song_id = s.id
+    WHERE lh.user_id = p_user_id
+  )
+  SELECT 
+    ranked_songs.id,
+    ranked_songs.title,
+    ranked_songs.duration,
+    ranked_songs.audio_url,
+    ranked_songs.cover_url,
+    ranked_songs.play_count,
+    ranked_songs.artist_name,
+    ranked_songs.artist_ids,
+    ranked_songs.artist_names
+  FROM ranked_songs
+  WHERE rn = 1
+  ORDER BY (
+    SELECT MAX(listened_at) 
+    FROM listening_history 
+    WHERE song_id = ranked_songs.id AND user_id = p_user_id
+  ) DESC
+  LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION get_recently_played_unique_songs(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_recently_played_unique_songs(UUID, INTEGER) TO anon;
+
+
+-- =====================
 -- HOÀN TẤT
 -- =====================
 SELECT 'FILE 3: Migrations applied successfully!' as status;

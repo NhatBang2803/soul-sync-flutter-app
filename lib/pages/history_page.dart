@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
 import '../components/add_to_playlist_dialog.dart';
+import '../components/auto_mini_player.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -143,7 +144,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: Stack(children: [_buildBody(), const AutoMiniPlayer()]),
     );
   }
 

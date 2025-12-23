@@ -698,11 +698,21 @@ class _NowPlayingPageState extends State<NowPlayingPage>
             ),
             onPressed: _openSleepTimer,
           ),
-          // Share
+          // View Artist
           IconButton(
-            icon: const Icon(Icons.share_outlined),
+            icon: const Icon(Icons.person_outline),
             color: AppColors.textSecondary,
-            onPressed: () {},
+            onPressed: () {
+              // Navigate to artist page if artist info is available
+              final artistIds = _currentSong?['artistIds'] as List?;
+              if (artistIds != null && artistIds.isNotEmpty) {
+                Navigator.pushNamed(
+                  context,
+                  '/artist',
+                  arguments: artistIds[0],
+                );
+              }
+            },
           ),
         ],
       ),

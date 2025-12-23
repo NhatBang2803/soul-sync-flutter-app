@@ -119,11 +119,25 @@ class QueueService {
     }
   }
 
-  /// Clear the entire queue
+  /// Clear the entire queue except the currently playing song
   void clearQueue() {
-    _queue.clear();
-    _originalQueue.clear();
-    _currentIndex = 0;
+    if (_queue.isEmpty) return;
+
+    // Keep only the current song if there is one
+    if (_currentIndex >= 0 && _currentIndex < _queue.length) {
+      final currentSong = _queue[_currentIndex];
+      _queue.clear();
+      _originalQueue.clear();
+      _queue.add(currentSong);
+      _originalQueue.add(currentSong);
+      _currentIndex = 0;
+    } else {
+      // No current song, clear everything
+      _queue.clear();
+      _originalQueue.clear();
+      _currentIndex = 0;
+    }
+
     _playedIds.clear();
     _notifyChange();
   }

@@ -6,6 +6,7 @@ import '../services/queue_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
 import '../components/add_to_playlist_dialog.dart';
+import '../components/auto_mini_player.dart';
 
 class PlaylistPage extends StatefulWidget {
   final String playlistId;
@@ -125,13 +126,18 @@ class _PlaylistPageState extends State<PlaylistPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(),
-          SliverToBoxAdapter(child: _buildPlaylistInfo()),
-          SliverToBoxAdapter(child: _buildPlayButton()),
-          SliverToBoxAdapter(child: _buildSongsList()),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(child: _buildPlaylistInfo()),
+              SliverToBoxAdapter(child: _buildPlayButton()),
+              SliverToBoxAdapter(child: _buildSongsList()),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
+          const AutoMiniPlayer(),
         ],
       ),
     );

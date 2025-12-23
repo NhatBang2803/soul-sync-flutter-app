@@ -29,7 +29,7 @@ class _HomePageState extends State<HomePage> {
   final QueueService _queueService = QueueService();
   final AuthService _authService = AuthService();
 
-  List<Song> _songs = [];
+  List<Song> _recentlyPlayed = [];
   List<Genre> _genres = [];
   Map<String, List<Song>> _rankingsByGenre = {};
   List<Artist> _topArtists = [];
@@ -53,12 +53,16 @@ class _HomePageState extends State<HomePage> {
         _error = null;
       });
 
-      // Load songs (required)
-      List<Map<String, dynamic>> songsData = [];
+      // Load recently played unique songs (no duplicates)
+      List<Map<String, dynamic>> recentlyPlayedData = [];
       try {
-        songsData = await _supabaseService.getSongs();
+        final userId = _authService.currentUserId;
+        if (userId != null) {
+          recentlyPlayedData = await _supabaseService
+              .getRecentlyPlayedUniqueSongs(userId, limit: 5);
+        }
       } catch (e) {
-        print('Error loading songs: $e');
+        print('Error loading recently played: $e');
       }
 
       // Load genres (optional)
@@ -117,7 +121,10 @@ class _HomePageState extends State<HomePage> {
         }
 
         setState(() {
-          _songs = songsData.map((json) => Song.fromJson(json)).toList();
+          // Database already returns unique songs, no need to filter
+          _recentlyPlayed = recentlyPlayedData
+              .map((song) => Song.fromJson(song))
+              .toList();
           _genres = genres;
           _rankingsByGenre = rankingsMap;
           _topArtists = artistsData
@@ -125,6 +132,7 @@ class _HomePageState extends State<HomePage> {
               .toList();
           _newReleases = releasesData
               .map((json) => Song.fromJson(json))
+              .take(10)
               .toList();
           _quickAccessAlbums = quickAlbumsData
               .map((json) => Album.fromJson(json))
@@ -137,7 +145,7 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _error = e.toString();
           _isLoading = false;
-          _songs = [];
+          _recentlyPlayed = [];
         });
       }
     }
@@ -384,7 +392,7 @@ class _HomePageState extends State<HomePage> {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _newReleases.take(7).length,
+        itemCount: _newReleases.length,
         itemBuilder: (context, index) {
           final song = _newReleases[index];
           return _buildNewReleaseItem(song, index);
@@ -662,24 +670,24 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    if (_songs.isEmpty) {
+    if (_recentlyPlayed.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(20.0),
         child: AppEmptyState(
           icon: Icons.music_off,
-          title: AppStrings.noSong,
-          subtitle: 'Vui lòng thêm dữ liệu vào Supabase.',
+          title: 'Chưa có lịch sử nghe',
+          subtitle: 'Bắt đầu nghe nhạc để xem nội dung gần đây.',
         ),
       );
     }
 
     return Column(
-      children: _songs.take(6).toList().asMap().entries.map((entry) {
+      children: _recentlyPlayed.asMap().entries.map((entry) {
         final index = entry.key;
         final song = entry.value;
         return SongListTile(
           song: song.toPlayerFormat(),
-          onTap: () => _onSongTap(song, _songs, index),
+          onTap: () => _onSongTap(song, _recentlyPlayed, index),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         );
       }).toList(),

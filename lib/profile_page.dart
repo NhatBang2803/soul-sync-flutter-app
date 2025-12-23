@@ -54,11 +54,20 @@ class _ProfilePageState extends State<ProfilePage> {
         if (mounted) {
           setState(() {
             _userProfile = userProfile;
-            // Extract songs from listening history
+            // Extract songs from listening history and deduplicate by song ID
+            final seenSongIds = <String>{};
             _recentlyPlayed = (results[0] as List)
                 .map(
                   (item) => Song.fromJson(item['song'] as Map<String, dynamic>),
                 )
+                .where((song) {
+                  // Keep only first occurrence of each song (most recent listen)
+                  if (seenSongIds.contains(song.id)) {
+                    return false;
+                  }
+                  seenSongIds.add(song.id);
+                  return true;
+                })
                 .toList();
             _followingArtists = (results[1] as List)
                 .map((json) => Artist.fromJson(json))
