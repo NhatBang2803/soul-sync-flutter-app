@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { Artist, Genre, Album, Song, Playlist, User } from '@/schemas'
+import type { Artist, Genre, Album, Song, Playlist, User, Podcast, PodcastEpisode } from '@/schemas'
 
 // ============ ARTISTS ============
 export const artistService = {
@@ -453,13 +453,14 @@ export const userService = {
 // ============ STATS ============
 export const statsService = {
     async getDashboardStats() {
-        const [artists, genres, albums, songs, playlists, users] = await Promise.all([
+        const [artists, genres, albums, songs, playlists, users, podcasts] = await Promise.all([
             supabase.from('artists').select('id', { count: 'exact', head: true }),
             supabase.from('genres').select('id', { count: 'exact', head: true }),
             supabase.from('albums').select('id', { count: 'exact', head: true }),
             supabase.from('songs').select('id', { count: 'exact', head: true }),
             supabase.from('playlists').select('id', { count: 'exact', head: true }),
             supabase.from('users').select('id', { count: 'exact', head: true }),
+            supabase.from('podcasts').select('id', { count: 'exact', head: true }),
         ])
 
         return {
@@ -469,6 +470,125 @@ export const statsService = {
             songs: songs.count || 0,
             playlists: playlists.count || 0,
             users: users.count || 0,
+            podcasts: podcasts.count || 0,
         }
+    },
+}
+
+// ============ PODCASTS ============
+export const podcastService = {
+    async getAll() {
+        const { data, error } = await supabase
+            .from('podcasts')
+            .select('*')
+            .order('title')
+        if (error) throw error
+        return data as Podcast[]
+    },
+
+    async getById(id: string) {
+        const { data, error } = await supabase
+            .from('podcasts')
+            .select('*')
+            .eq('id', id)
+            .single()
+        if (error) throw error
+        return data as Podcast
+    },
+
+    async create(podcast: Omit<Podcast, 'id' | 'created_at' | 'updated_at'>) {
+        const { data, error } = await supabase
+            .from('podcasts')
+            .insert(podcast)
+            .select()
+            .single()
+        if (error) throw error
+        return data as Podcast
+    },
+
+    async update(id: string, podcast: Partial<Podcast>) {
+        const { data, error } = await supabase
+            .from('podcasts')
+            .update({ ...podcast, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single()
+        if (error) throw error
+        return data as Podcast
+    },
+
+    async delete(id: string) {
+        const { error } = await supabase.from('podcasts').delete().eq('id', id)
+        if (error) throw error
+    },
+
+    async getEpisodes(podcastId: string) {
+        const { data, error } = await supabase
+            .from('podcast_episodes')
+            .select('*')
+            .eq('podcast_id', podcastId)
+            .order('published_at', { ascending: false })
+        if (error) throw error
+        return data as PodcastEpisode[]
+    },
+
+    async getEpisodeCount(podcastId: string) {
+        const { count, error } = await supabase
+            .from('podcast_episodes')
+            .select('*', { count: 'exact', head: true })
+            .eq('podcast_id', podcastId)
+        if (error) throw error
+        return count || 0
+    },
+}
+
+// ============ PODCAST EPISODES ============
+export const podcastEpisodeService = {
+    async getAll() {
+        const { data, error } = await supabase
+            .from('podcast_episodes')
+            .select('*, podcasts(title)')
+            .order('published_at', { ascending: false })
+        if (error) throw error
+        return data as (PodcastEpisode & { podcasts: { title: string } })[]
+    },
+
+    async getById(id: string) {
+        const { data, error } = await supabase
+            .from('podcast_episodes')
+            .select('*')
+            .eq('id', id)
+            .single()
+        if (error) throw error
+        return data as PodcastEpisode
+    },
+
+    async create(episode: Omit<PodcastEpisode, 'id' | 'created_at' | 'play_count'>) {
+        const { data, error } = await supabase
+            .from('podcast_episodes')
+            .insert({
+                ...episode,
+                published_at: episode.published_at || new Date().toISOString(),
+            })
+            .select()
+            .single()
+        if (error) throw error
+        return data as PodcastEpisode
+    },
+
+    async update(id: string, episode: Partial<PodcastEpisode>) {
+        const { data, error } = await supabase
+            .from('podcast_episodes')
+            .update(episode)
+            .eq('id', id)
+            .select()
+            .single()
+        if (error) throw error
+        return data as PodcastEpisode
+    },
+
+    async delete(id: string) {
+        const { error } = await supabase.from('podcast_episodes').delete().eq('id', id)
+        if (error) throw error
     },
 }

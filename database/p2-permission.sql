@@ -13,6 +13,10 @@ GRANT SELECT ON albums_with_artists TO anon, authenticated;
 GRANT SELECT ON weekly_song_rankings TO anon, authenticated;
 GRANT SELECT ON weekly_artist_rankings TO anon, authenticated;
 GRANT SELECT ON new_releases TO anon, authenticated;
+GRANT SELECT ON view_podcast_library TO anon, authenticated;
+GRANT SELECT ON view_podcast_new_releases TO anon, authenticated;
+GRANT SELECT ON view_podcast_episode_rankings TO anon, authenticated;
+GRANT SELECT ON view_podcast_episodes_full TO anon, authenticated;
 
 -- Grant all on tables
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
@@ -46,7 +50,10 @@ ALTER TABLE user_follows DISABLE ROW LEVEL SECURITY;
 ALTER TABLE user_liked_songs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE user_liked_albums DISABLE ROW LEVEL SECURITY;
 ALTER TABLE listening_history DISABLE ROW LEVEL SECURITY;
-ALTER TABLE password_reset_tokens DISABLE ROW LEVEL SECURITY;
+ALTER TABLE podcasts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE podcast_episodes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE user_saved_podcasts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE podcast_listening_history DISABLE ROW LEVEL SECURITY;
 
 SELECT 'FILE 2: Security configured (DEVELOPMENT MODE - RLS Disabled)' as status;
 
@@ -72,7 +79,9 @@ ALTER TABLE user_follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_liked_songs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_liked_albums ENABLE ROW LEVEL SECURITY;
 ALTER TABLE listening_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE podcasts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE podcast_episodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_saved_podcasts ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies (tránh conflict)
 DROP POLICY IF EXISTS "Public read" ON users;
@@ -92,7 +101,9 @@ DROP POLICY IF EXISTS "User manages follows" ON user_follows;
 DROP POLICY IF EXISTS "User manages likes" ON user_liked_songs;
 DROP POLICY IF EXISTS "User manages album likes" ON user_liked_albums;
 DROP POLICY IF EXISTS "User manages history" ON listening_history;
-DROP POLICY IF EXISTS "Read reset tokens" ON password_reset_tokens;
+DROP POLICY IF EXISTS "Public read podcasts" ON podcasts;
+DROP POLICY IF EXISTS "Public read episodes" ON podcast_episodes;
+DROP POLICY IF EXISTS "User manages saved podcasts" ON user_saved_podcasts;
 
 -- === PUBLIC READ POLICIES ===
 CREATE POLICY "Public read" ON users FOR SELECT USING (true);
@@ -124,8 +135,14 @@ CREATE POLICY "User manages album likes" ON user_liked_albums
   FOR ALL USING (user_id = auth.uid());
 CREATE POLICY "User manages history" ON listening_history 
   FOR ALL USING (user_id = auth.uid() OR user_id IS NULL);
-CREATE POLICY "Read reset tokens" ON password_reset_tokens 
+
+-- === PODCAST POLICIES ===
+CREATE POLICY "Public read podcasts" ON podcasts 
   FOR SELECT USING (true);
+CREATE POLICY "Public read episodes" ON podcast_episodes 
+  FOR SELECT USING (true);
+CREATE POLICY "User manages saved podcasts" ON user_saved_podcasts 
+  FOR ALL USING (user_id = auth.uid());
 
 SELECT 'FILE 2: Security configured (PRODUCTION MODE - RLS Enabled)' as status;
 */

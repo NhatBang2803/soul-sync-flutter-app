@@ -10,6 +10,7 @@ import {
     Menu,
     X,
     Sparkles,
+    Podcast,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -22,6 +23,7 @@ const navItems = [
     { href: '/albums', label: 'Album', icon: Disc3 },
     { href: '/genres', label: 'Thể loại', icon: Tag },
     { href: '/playlists', label: 'Playlist', icon: ListMusic },
+    { href: '/podcasts', label: 'Podcast', icon: Podcast },
     { href: '/users', label: 'Người dùng', icon: Users },
 ]
 

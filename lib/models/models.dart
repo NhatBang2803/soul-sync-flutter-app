@@ -5,3 +5,5 @@ export 'album.dart';
 export 'playlist.dart';
 export 'user.dart';
 export 'genre.dart';
+export 'podcast.dart';
+export 'podcast_episode.dart';

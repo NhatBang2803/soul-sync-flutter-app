@@ -8,6 +8,7 @@ import 'now_playing_page.dart';
 import 'core/core.dart';
 import 'pages/playlist_page.dart';
 import 'pages/album_page.dart';
+import 'pages/podcast_page.dart';
 
 class LibraryPage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -24,11 +25,12 @@ class _LibraryPageState extends State<LibraryPage> {
   final AuthService _authService = AuthService();
 
   int _activeFilterIndex =
-      0; // 0=all, 1=playlists, 2=albums (liked), 3=songs (liked)
+      0; // 0=all, 1=playlists, 2=albums (liked), 3=songs (liked), 4=podcasts (saved)
 
   List<Playlist> _playlists = [];
   List<Song> _likedSongs = [];
   List<Album> _likedAlbums = [];
+  List<Podcast> _savedPodcasts = [];
   bool _isLoading = true;
   String? _error;
 
@@ -37,6 +39,7 @@ class _LibraryPageState extends State<LibraryPage> {
     AppStrings.playlist,
     AppStrings.album,
     'Bài hát',
+    'Podcast',
   ];
 
   @override
@@ -68,6 +71,10 @@ class _LibraryPageState extends State<LibraryPage> {
         userId != null
             ? _supabaseService.getLikedAlbums(userId)
             : Future.value(<Map<String, dynamic>>[]),
+        // Lấy podcast đã lưu của user
+        userId != null
+            ? _supabaseService.getSavedPodcasts(userId)
+            : Future.value(<Map<String, dynamic>>[]),
       ]);
 
       if (mounted) {
@@ -80,6 +87,9 @@ class _LibraryPageState extends State<LibraryPage> {
               .toList();
           _likedAlbums = (results[2] as List)
               .map((json) => Album.fromJson(json))
+              .toList();
+          _savedPodcasts = (results[3] as List)
+              .map((json) => Podcast.fromJson(json))
               .toList();
           _isLoading = false;
         });
@@ -217,6 +227,9 @@ class _LibraryPageState extends State<LibraryPage> {
           // Liked songs section (filter 3 = Bài hát)
           if (_activeFilterIndex == 0 || _activeFilterIndex == 3)
             _buildLikedSongsSection(),
+          // Saved podcasts section (filter 4 = Podcast)
+          if (_activeFilterIndex == 0 || _activeFilterIndex == 4)
+            _buildSavedPodcastsSection(),
           const SizedBox(height: 100),
         ],
       ),
@@ -843,4 +856,82 @@ class _LibraryPageState extends State<LibraryPage> {
       },
     );
   }
+Widget _buildSavedPodcastsSection() {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Podcast đã lưu',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (_savedPodcasts.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Chưa có podcast đã lưu',
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          )
+        else
+          ..._savedPodcasts.map((podcast) {
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: podcast.imageUrl != null
+                    ? Image.network(
+                        podcast.imageUrl!,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        width: 56,
+                        height: 56,
+                        color: AppColors.surface,
+                        child: const Icon(
+                          Icons.podcasts,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+              ),
+              title: Text(
+                podcast.title,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                '${podcast.hostName} • ${podcast.episodeCount} tập',
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PodcastPage(podcastId: podcast.id),
+                  ),
+                );
+              },
+            );
+          }),
+      ],
+    ),
+  );
+}
 }

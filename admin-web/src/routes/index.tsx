@@ -7,6 +7,7 @@ import AlbumsPage from '@/pages/AlbumsPage'
 import GenresPage from '@/pages/GenresPage'
 import PlaylistsPage from '@/pages/PlaylistsPage'
 import UsersPage from '@/pages/UsersPage'
+import PodcastsPage from '@/pages/PodcastsPage'
 
 const router = createBrowserRouter([
     {
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
             { path: 'albums', element: <AlbumsPage /> },
             { path: 'genres', element: <GenresPage /> },
             { path: 'playlists', element: <PlaylistsPage /> },
+            { path: 'podcasts', element: <PodcastsPage /> },
             { path: 'users', element: <UsersPage /> },
         ],
     },

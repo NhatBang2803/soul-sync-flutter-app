@@ -9,6 +9,7 @@ import 'core/core.dart';
 import 'pages/artist_page.dart';
 import 'pages/album_page.dart';
 import 'pages/history_page.dart';
+import 'pages/artist_follow_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -337,6 +338,10 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         _buildSectionHeader('Nghệ sĩ đang theo dõi', () {
           // Navigate to all following artists
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ArtistFollowPage()),
+          );
         }),
         const SizedBox(height: 8),
         if (_followingArtists.isEmpty)
@@ -422,9 +427,18 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Album nghe gần đây', () {
-          // Navigate to all recent albums
-        }),
+        // Simple title without "See All" button
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            'Album nghe gần đây',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
         const SizedBox(height: 8),
         if (_recentAlbums.isEmpty)
           const Padding(

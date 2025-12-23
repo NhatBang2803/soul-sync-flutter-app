@@ -18,15 +18,26 @@ interface BackupDialogProps {
 }
 
 const TABLES = [
+    // Core entities
+    { name: 'users', label: 'Người dùng' },
     { name: 'artists', label: 'Nghệ sĩ' },
     { name: 'genres', label: 'Thể loại' },
     { name: 'albums', label: 'Album' },
     { name: 'songs', label: 'Bài hát' },
     { name: 'playlists', label: 'Playlist' },
+
+    // Junction tables (many-to-many relationships)
     { name: 'song_artists', label: 'Song ↔ Artist' },
     { name: 'album_artists', label: 'Album ↔ Artist' },
     { name: 'album_songs', label: 'Album ↔ Song' },
     { name: 'song_genres', label: 'Song ↔ Genre' },
+    { name: 'playlist_songs', label: 'Playlist ↔ Song' },
+
+    // User interactions
+    { name: 'user_liked_songs', label: 'Bài hát yêu thích' },
+    { name: 'user_liked_albums', label: 'Album yêu thích' },
+    { name: 'user_follows', label: 'Theo dõi nghệ sĩ' },
+    { name: 'listening_history', label: 'Lịch sử nghe' },
 ]
 
 function formatSQLValue(value: unknown): string {

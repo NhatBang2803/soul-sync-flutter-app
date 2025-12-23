@@ -184,15 +184,50 @@ CREATE TABLE listening_history (
   completed BOOLEAN DEFAULT FALSE
 );
 
--- Password reset tokens
-CREATE TABLE password_reset_tokens (
+-- Podcasts (Main podcast info)
+CREATE TABLE podcasts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  email VARCHAR(255) NOT NULL,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  used BOOLEAN DEFAULT FALSE,
+  title VARCHAR(255) NOT NULL,
+  host_name VARCHAR(255) NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  category VARCHAR(100) DEFAULT 'General',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Podcast Episodes (Individual episodes)
+CREATE TABLE podcast_episodes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  podcast_id UUID NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  audio_url TEXT NOT NULL,
+  duration INTEGER DEFAULT 0,
+  play_count INTEGER DEFAULT 0,
+  published_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- User Saved Podcasts (User ↔ Podcast relationship)
+CREATE TABLE user_saved_podcasts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  podcast_id UUID NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+  saved_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, podcast_id)
+);
+
+-- Podcast Listening History (Track what episodes users listened to)
+CREATE TABLE podcast_listening_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  episode_id UUID NOT NULL REFERENCES podcast_episodes(id) ON DELETE CASCADE,
+  listened_at TIMESTAMPTZ DEFAULT NOW(),
+  duration_played INTEGER DEFAULT 0,
+  completed BOOLEAN DEFAULT FALSE
+);
+
 
 -- =====================
 -- PHẦN 5: INDEXES
@@ -219,6 +254,18 @@ CREATE INDEX idx_user_liked_albums_album ON user_liked_albums(album_id);
 CREATE INDEX idx_listening_history_user ON listening_history(user_id);
 CREATE INDEX idx_listening_history_song ON listening_history(song_id);
 CREATE INDEX idx_listening_history_time ON listening_history(listened_at DESC);
+
+-- Podcast indexes
+CREATE INDEX idx_podcasts_title ON podcasts(title);
+CREATE INDEX idx_podcasts_category ON podcasts(category);
+CREATE INDEX idx_podcast_episodes_podcast ON podcast_episodes(podcast_id);
+CREATE INDEX idx_podcast_episodes_published ON podcast_episodes(published_at DESC);
+CREATE INDEX idx_podcast_episodes_play_count ON podcast_episodes(play_count DESC);
+CREATE INDEX idx_user_saved_podcasts_user ON user_saved_podcasts(user_id);
+CREATE INDEX idx_user_saved_podcasts_podcast ON user_saved_podcasts(podcast_id);
+CREATE INDEX idx_podcast_listening_history_user ON podcast_listening_history(user_id);
+CREATE INDEX idx_podcast_listening_history_episode ON podcast_listening_history(episode_id);
+CREATE INDEX idx_podcast_listening_history_time ON podcast_listening_history(listened_at DESC);
 
 -- =====================
 -- PHẦN 6: VIEWS
@@ -404,6 +451,84 @@ BEGIN
   UPDATE artists SET followers = followers + 1 WHERE id = p_artist_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Podcast Library View (Podcasts with episode stats)
+CREATE OR REPLACE VIEW view_podcast_library AS
+SELECT 
+  p.id,
+  p.title,
+  p.host_name,
+  p.image_url,
+  p.description,
+  p.category,
+  p.created_at,
+  COUNT(pe.id) as episode_count,
+  COALESCE(SUM(pe.duration), 0) as total_duration_seconds,
+  COALESCE(SUM(pe.play_count), 0) as total_plays,
+  MAX(pe.published_at) as last_updated
+FROM podcasts p
+LEFT JOIN podcast_episodes pe ON p.id = pe.podcast_id
+GROUP BY p.id;
+
+-- Podcast New Releases View (Episodes released in the last 7 days)
+CREATE OR REPLACE VIEW view_podcast_new_releases AS
+SELECT 
+  pe.id,
+  pe.podcast_id,
+  pe.title,
+  pe.description,
+  pe.audio_url,
+  pe.duration,
+  pe.play_count,
+  pe.published_at,
+  p.title as podcast_title,
+  p.host_name,
+  p.image_url as podcast_image
+FROM podcast_episodes pe
+INNER JOIN podcasts p ON pe.podcast_id = p.id
+WHERE pe.published_at >= NOW() - INTERVAL '7 days'
+ORDER BY pe.published_at DESC;
+
+-- Podcast Episode Rankings (Top episodes by play count)
+CREATE OR REPLACE VIEW view_podcast_episode_rankings AS
+SELECT 
+  pe.id,
+  pe.podcast_id,
+  pe.title,
+  pe.description,
+  pe.audio_url,
+  pe.duration,
+  pe.play_count,
+  pe.published_at,
+  p.title as podcast_title,
+  p.host_name,
+  p.image_url as podcast_image,
+  RANK() OVER (ORDER BY pe.play_count DESC) as rank
+FROM podcast_episodes pe
+INNER JOIN podcasts p ON pe.podcast_id = p.id
+WHERE pe.play_count > 0
+ORDER BY pe.play_count DESC
+LIMIT 20;
+
+-- Episodes with Podcast Info (For detailed display)
+CREATE OR REPLACE VIEW view_podcast_episodes_full AS
+SELECT 
+  pe.id,
+  pe.podcast_id,
+  pe.title,
+  pe.description,
+  pe.audio_url,
+  pe.duration,
+  pe.play_count,
+  pe.published_at,
+  pe.created_at,
+  p.title as podcast_title,
+  p.host_name,
+  p.image_url as podcast_image,
+  p.category
+FROM podcast_episodes pe
+INNER JOIN podcasts p ON pe.podcast_id = p.id
+ORDER BY pe.published_at DESC;
 
 -- =====================
 -- HOÀN TẤT FILE 1

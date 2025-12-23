@@ -80,3 +80,32 @@ export const userSchema = z.object({
 })
 
 export type User = z.infer<typeof userSchema>
+
+// Podcast Schema
+export const podcastSchema = z.object({
+    id: z.string().uuid().optional(),
+    title: z.string().min(1, 'Tên podcast không được để trống'),
+    host_name: z.string().min(1, 'Tên host không được để trống'),
+    description: z.string().optional().nullable(),
+    image_url: z.string().url().optional().nullable(),
+    category: z.string().default('General'),
+    created_at: z.string().optional(),
+    updated_at: z.string().optional(),
+})
+
+export type Podcast = z.infer<typeof podcastSchema>
+
+// Podcast Episode Schema
+export const podcastEpisodeSchema = z.object({
+    id: z.string().uuid().optional(),
+    podcast_id: z.string().uuid(),
+    title: z.string().min(1, 'Tiêu đề tập không được để trống'),
+    description: z.string().optional().nullable(),
+    audio_url: z.string().url('URL audio không hợp lệ'),
+    duration: z.number().int().min(0).default(0),
+    play_count: z.number().int().min(0).default(0),
+    published_at: z.string().optional(),
+    created_at: z.string().optional(),
+})
+
+export type PodcastEpisode = z.infer<typeof podcastEpisodeSchema>

@@ -43,7 +43,9 @@ class _SearchPageState extends State<SearchPage> {
   List<Artist> _randomArtists = [];
   List<Album> _randomAlbums = [];
   List<Playlist> _randomPlaylists = [];
+  List<Map<String, dynamic>> _browseGenres = []; // Random genres for browsing
   bool _isLoadingSuggestions = false;
+  bool _isLoadingGenres = false;
 
   int _selectedCategoryIndex = 0;
   final List<String> _categories = [
@@ -54,10 +56,10 @@ class _SearchPageState extends State<SearchPage> {
     'Playlist',
   ];
 
-  @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _loadRandomGenres(); // Load random genres on init
   }
 
   @override
@@ -178,6 +180,30 @@ class _SearchPageState extends State<SearchPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingSuggestions = false);
+      }
+    }
+  }
+
+  /// Load 8 random genres from database
+  Future<void> _loadRandomGenres() async {
+    setState(() => _isLoadingGenres = true);
+
+    try {
+      final genresData = await _supabaseService.getGenres();
+
+      if (mounted && genresData.isNotEmpty) {
+        // Shuffle and take 8 random genres
+        final shuffled = List<Map<String, dynamic>>.from(genresData);
+        shuffled.shuffle();
+
+        setState(() {
+          _browseGenres = shuffled.take(8).toList();
+          _isLoadingGenres = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingGenres = false);
       }
     }
   }
@@ -550,7 +576,12 @@ class _SearchPageState extends State<SearchPage> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AddToPlaylistButton(songId: song.id, songTitle: song.title, song: song, size: 26),
+          AddToPlaylistButton(
+            songId: song.id,
+            songTitle: song.title,
+            song: song,
+            size: 26,
+          ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(
@@ -735,38 +766,6 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildBrowseContent() {
-    // Categories for browsing when not searching
-    final browseCategories = [
-      {
-        'name': 'Pop Việt Nam',
-        'color': const Color(0xFFE91E63),
-        'icon': Icons.favorite,
-      },
-      {
-        'name': 'Hip-Hop',
-        'color': const Color(0xFF9C27B0),
-        'icon': Icons.headphones,
-      },
-      {
-        'name': 'Indie',
-        'color': const Color(0xFF673AB7),
-        'icon': Icons.music_note,
-      },
-      {'name': 'Ballad', 'color': const Color(0xFF3F51B5), 'icon': Icons.piano},
-      {'name': 'EDM', 'color': const Color(0xFF00BCD4), 'icon': Icons.speaker},
-      {'name': 'R&B', 'color': const Color(0xFFFF5722), 'icon': Icons.album},
-      {
-        'name': 'Rock',
-        'color': const Color(0xFF795548),
-        'icon': Icons.electric_bolt,
-      },
-      {
-        'name': 'Jazz',
-        'color': const Color(0xFF607D8B),
-        'icon': Icons.nightlife,
-      },
-    ];
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -781,24 +780,71 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
           const SizedBox(height: 16),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.6,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            children: browseCategories.map((category) {
-              return _buildBrowseCategory(
-                category['name'] as String,
-                category['color'] as Color,
-                category['icon'] as IconData,
-              );
-            }).toList(),
-          ),
+
+          // Show loading or genres
+          _isLoadingGenres
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: AppLoadingIndicator(),
+                  ),
+                )
+              : GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.6,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  children: _browseGenres.map((genre) {
+                    return _buildBrowseCategory(
+                      genre['display_name'] ?? genre['name'] ?? 'Unknown',
+                      _parseColor(genre['color'] as String?),
+                      _getIconForGenre(genre['name'] as String?),
+                    );
+                  }).toList(),
+                ),
         ],
       ),
     );
+  }
+
+  /// Parse color from hex string
+  Color _parseColor(String? colorHex) {
+    if (colorHex == null || colorHex.isEmpty) {
+      return const Color(0xFF9C27B0); // Default purple
+    }
+
+    try {
+      // Remove # if present
+      final hex = colorHex.replaceAll('#', '');
+      // Add FF for full opacity if not present
+      final colorString = hex.length == 6 ? 'FF$hex' : hex;
+      return Color(int.parse(colorString, radix: 16));
+    } catch (e) {
+      return const Color(0xFF9C27B0); // Default purple on error
+    }
+  }
+
+  /// Get icon based on genre name
+  IconData _getIconForGenre(String? genreName) {
+    if (genreName == null) return Icons.music_note;
+
+    final name = genreName.toLowerCase();
+    if (name.contains('pop')) return Icons.favorite;
+    if (name.contains('hip') || name.contains('rap')) return Icons.headphones;
+    if (name.contains('indie')) return Icons.music_note;
+    if (name.contains('ballad')) return Icons.piano;
+    if (name.contains('edm') || name.contains('electronic'))
+      return Icons.speaker;
+    if (name.contains('r&b') || name.contains('rnb')) return Icons.album;
+    if (name.contains('rock')) return Icons.electric_bolt;
+    if (name.contains('jazz')) return Icons.nightlife;
+    if (name.contains('classical')) return Icons.music_note;
+    if (name.contains('acoustic')) return Icons.music_note;
+    if (name.contains('drill')) return Icons.headphones;
+
+    return Icons.music_note; // Default icon
   }
 
   Widget _buildBrowseCategory(String name, Color color, IconData icon) {

@@ -779,4 +779,192 @@ class SupabaseService {
         .stream(primaryKey: ['id'])
         .eq('is_public', true);
   }
+
+  // ==================== PODCASTS ====================
+
+  /// Lấy danh sách podcasts từ view_podcast_library
+  Future<List<Map<String, dynamic>>> getPodcasts({int limit = 20}) async {
+    final response = await client
+        .from('view_podcast_library')
+        .select()
+        .order('total_plays', ascending: false)
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Lấy podcast theo ID
+  Future<Map<String, dynamic>?> getPodcastById(String id) async {
+    final response = await client
+        .from('view_podcast_library')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+    return response;
+  }
+
+  /// Lấy episodes của podcast
+  Future<List<Map<String, dynamic>>> getPodcastEpisodes(
+    String podcastId, {
+    int limit = 50,
+  }) async {
+    final response = await client
+        .from('view_podcast_episodes_full')
+        .select()
+        .eq('podcast_id', podcastId)
+        .order('published_at', ascending: false)
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Lấy podcast mới phát hành (7 ngày gần đây)
+  Future<List<Map<String, dynamic>>> getPodcastNewReleases({
+    int limit = 10,
+  }) async {
+    final response = await client
+        .from('view_podcast_new_releases')
+        .select()
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Lấy BXH podcast episodes theo lượt nghe
+  Future<List<Map<String, dynamic>>> getPodcastRankings({
+    int limit = 10,
+  }) async {
+    final response = await client
+        .from('view_podcast_episode_rankings')
+        .select()
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Kiểm tra đã lưu podcast chưa
+  Future<bool> isPodcastSaved(String userId, String podcastId) async {
+    final response = await client
+        .from('user_saved_podcasts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('podcast_id', podcastId)
+        .maybeSingle();
+    return response != null;
+  }
+
+  /// Lưu podcast
+  Future<void> savePodcast(String userId, String podcastId) async {
+    final existing = await client
+        .from('user_saved_podcasts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('podcast_id', podcastId)
+        .maybeSingle();
+
+    if (existing != null) return;
+
+    await client.from('user_saved_podcasts').insert({
+      'user_id': userId,
+      'podcast_id': podcastId,
+    });
+  }
+
+  /// Bỏ lưu podcast
+  Future<void> unsavePodcast(String userId, String podcastId) async {
+    await client
+        .from('user_saved_podcasts')
+        .delete()
+        .eq('user_id', userId)
+        .eq('podcast_id', podcastId);
+  }
+
+  /// Lấy danh sách podcast đã lưu
+  Future<List<Map<String, dynamic>>> getSavedPodcasts(String userId) async {
+    final response = await client
+        .from('user_saved_podcasts')
+        .select('podcast_id, view_podcast_library!inner(*)')
+        .eq('user_id', userId)
+        .order('saved_at', ascending: false);
+    return response
+        .map<Map<String, dynamic>>(
+          (r) => r['view_podcast_library'] as Map<String, dynamic>,
+        )
+        .toList();
+  }
+
+  /// Ghi lịch sử nghe podcast
+  Future<void> recordPodcastListening({
+    String? userId,
+    required String episodeId,
+    int durationPlayed = 0,
+    bool completed = false,
+  }) async {
+    await client.from('podcast_listening_history').insert({
+      'user_id': userId,
+      'episode_id': episodeId,
+      'duration_played': durationPlayed,
+      'completed': completed,
+    });
+
+    // Increment play count
+    await client.rpc(
+      'increment_podcast_play_count',
+      params: {'episode_id': episodeId},
+    );
+  }
+
+  /// Lấy lịch sử nghe podcast
+  Future<List<Map<String, dynamic>>> getPodcastListeningHistory(
+    String userId, {
+    int limit = 50,
+  }) async {
+    final response = await client
+        .from('podcast_listening_history')
+        .select('''
+          id,
+          listened_at,
+          duration_played,
+          completed,
+          view_podcast_episodes_full!inner(*)
+        ''')
+        .eq('user_id', userId)
+        .order('listened_at', ascending: false)
+        .limit(limit);
+
+    return response.map<Map<String, dynamic>>((item) {
+      final episode =
+          item['view_podcast_episodes_full'] as Map<String, dynamic>;
+      return {
+        'listened_at': item['listened_at'],
+        'duration_played': item['duration_played'],
+        'completed': item['completed'],
+        'episode': episode,
+      };
+    }).toList();
+  }
+
+  /// Lấy podcasts nghe gần đây (unique podcasts)
+  Future<List<Map<String, dynamic>>> getRecentlyPlayedPodcasts(
+    String userId, {
+    int limit = 5,
+  }) async {
+    final history = await getPodcastListeningHistory(userId, limit: 20);
+
+    // Get unique podcasts
+    final seenPodcastIds = <String>{};
+    final uniquePodcasts = <Map<String, dynamic>>[];
+
+    for (final item in history) {
+      final episode = item['episode'] as Map<String, dynamic>;
+      final podcastId = episode['podcast_id']?.toString() ?? '';
+
+      if (!seenPodcastIds.contains(podcastId) && podcastId.isNotEmpty) {
+        seenPodcastIds.add(podcastId);
+        final podcast = await getPodcastById(podcastId);
+        if (podcast != null) {
+          uniquePodcasts.add(podcast);
+        }
+        if (uniquePodcasts.length >= limit) break;
+      }
+    }
+
+    return uniquePodcasts;
+  }
 }

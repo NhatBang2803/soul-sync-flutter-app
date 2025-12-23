@@ -4,6 +4,7 @@ import 'components/bottom_nav_bar.dart';
 import 'components/add_to_playlist_dialog.dart';
 import 'components/artist_card.dart';
 import 'components/album_card.dart';
+import 'components/podcast_card.dart';
 import 'now_playing_page.dart';
 import 'services/supabase_service.dart';
 import 'services/audio_player_service.dart';
@@ -12,6 +13,7 @@ import 'services/auth_service.dart';
 import 'models/models.dart';
 import 'core/core.dart';
 import 'pages/artist_page.dart';
+import 'pages/podcast_page.dart';
 
 class HomePage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -35,6 +37,12 @@ class _HomePageState extends State<HomePage> {
   List<Artist> _topArtists = [];
   List<Song> _newReleases = [];
   List<Album> _quickAccessAlbums = [];
+
+  // Podcast data
+  List<Podcast> _podcasts = [];
+  List<PodcastEpisode> _podcastNewReleases = [];
+  List<Podcast> _recentlyPlayedPodcasts = [];
+
   bool _isLoading = true;
   String? _error;
   int _selectedFilterIndex = 0;
@@ -102,6 +110,35 @@ class _HomePageState extends State<HomePage> {
         print('Error loading quick access albums: $e');
       }
 
+      // Load podcasts (for Tab Tất cả and Podcast)
+      List<Map<String, dynamic>> podcastsData = [];
+      try {
+        podcastsData = await _supabaseService.getPodcasts(limit: 10);
+      } catch (e) {
+        print('Error loading podcasts: $e');
+      }
+
+      // Load podcast new releases
+      List<Map<String, dynamic>> podcastNewReleasesData = [];
+      try {
+        podcastNewReleasesData = await _supabaseService.getPodcastNewReleases();
+      } catch (e) {
+        print('Error loading podcast new releases: $e');
+      }
+
+      // Load recently played podcasts
+      List<Map<String, dynamic>> recentPodcastsData = [];
+      try {
+        final userId = _authService.currentUserId;
+        if (userId != null) {
+          recentPodcastsData = await _supabaseService.getRecentlyPlayedPodcasts(
+            userId,
+          );
+        }
+      } catch (e) {
+        print('Error loading recent podcasts: $e');
+      }
+
       if (mounted) {
         final genres = genresData.map((json) => Genre.fromJson(json)).toList();
 
@@ -136,6 +173,15 @@ class _HomePageState extends State<HomePage> {
               .toList();
           _quickAccessAlbums = quickAlbumsData
               .map((json) => Album.fromJson(json))
+              .toList();
+          _podcasts = podcastsData
+              .map((json) => Podcast.fromJson(json))
+              .toList();
+          _podcastNewReleases = podcastNewReleasesData
+              .map((json) => PodcastEpisode.fromJson(json))
+              .toList();
+          _recentlyPlayedPodcasts = recentPodcastsData
+              .map((json) => Podcast.fromJson(json))
               .toList();
           _isLoading = false;
         });
@@ -203,31 +249,7 @@ class _HomePageState extends State<HomePage> {
               child: SingleChildScrollView(
                 controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildQuickAccessGrid(),
-                    const SizedBox(height: 20),
-                    // Weekly Artist Ranking
-                    if (_topArtists.isNotEmpty) ...[
-                      const SectionHeader(title: 'Nghệ sĩ hàng đầu tuần này'),
-                      _buildArtistRanking(),
-                      const SizedBox(height: 20),
-                    ],
-                    // New Releases
-                    if (_newReleases.isNotEmpty) ...[
-                      const SectionHeader(title: 'Mới phát hành'),
-                      _buildNewReleases(),
-                      const SizedBox(height: 20),
-                    ],
-                    // Song Rankings by Genre
-                    ..._buildGenreRankings(),
-                    const SizedBox(height: 20),
-                    const SectionHeader(title: 'Nội dung bạn nghe gần đây'),
-                    _buildRecentlyPlayedList(),
-                    const SizedBox(height: 100),
-                  ],
-                ),
+                child: _buildTabContent(),
               ),
             ),
           ],
@@ -324,6 +346,232 @@ class _HomePageState extends State<HomePage> {
       selectedIndex: _selectedFilterIndex,
       onSelected: (index) {
         setState(() => _selectedFilterIndex = index);
+      },
+    );
+  }
+
+  /// Build content based on selected tab
+  Widget _buildTabContent() {
+    switch (_selectedFilterIndex) {
+      case 0: // Tất cả
+        return _buildAllTabContent();
+      case 1: // Âm nhạc
+        return _buildMusicTabContent();
+      case 2: // Podcast
+        return _buildPodcastTabContent();
+      default:
+        return _buildAllTabContent();
+    }
+  }
+
+  /// Tab "Tất cả" - Albums, New Releases, Podcasts, Recently Played
+  Widget _buildAllTabContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildQuickAccessGrid(),
+        const SizedBox(height: 20),
+        // New Releases (Music)
+        if (_newReleases.isNotEmpty) ...[
+          const SectionHeader(title: 'Mới phát hành'),
+          _buildNewReleases(),
+          const SizedBox(height: 20),
+        ],
+        // Podcasts Featured
+        if (_podcasts.isNotEmpty) ...[
+          const SectionHeader(title: 'Podcast nổi bật'),
+          _buildPodcastList(),
+          const SizedBox(height: 20),
+        ],
+        const SectionHeader(title: 'Nội dung bạn nghe gần đây'),
+        _buildRecentlyPlayedList(),
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  /// Tab "Âm nhạc" - Artists, Rankings, New Releases, Recently Played
+  Widget _buildMusicTabContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Weekly Artist Ranking
+        if (_topArtists.isNotEmpty) ...[
+          const SectionHeader(title: 'Nghệ sĩ hàng đầu tuần này'),
+          _buildArtistRanking(),
+          const SizedBox(height: 20),
+        ],
+        // Song Rankings by Genre
+        ..._buildGenreRankings(),
+        const SizedBox(height: 20),
+        // New Releases
+        if (_newReleases.isNotEmpty) ...[
+          const SectionHeader(title: 'Mới phát hành'),
+          _buildNewReleases(),
+          const SizedBox(height: 20),
+        ],
+        const SectionHeader(title: 'Bài hát đã nghe gần đây'),
+        _buildRecentlyPlayedList(),
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  /// Tab "Podcast" - Podcasts only
+  Widget _buildPodcastTabContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Featured Podcasts
+        if (_podcasts.isNotEmpty) ...[
+          const SectionHeader(title: 'Podcast nổi bật'),
+          _buildPodcastList(),
+          const SizedBox(height: 20),
+        ],
+        // Podcast New Releases
+        if (_podcastNewReleases.isNotEmpty) ...[
+          const SectionHeader(title: 'Tập mới phát hành'),
+          _buildPodcastNewReleasesList(),
+          const SizedBox(height: 20),
+        ],
+        // Recently Played Podcasts
+        if (_recentlyPlayedPodcasts.isNotEmpty) ...[
+          const SectionHeader(title: 'Podcast đã nghe gần đây'),
+          _buildRecentPodcastsList(),
+          const SizedBox(height: 20),
+        ],
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  /// Build horizontal podcast list
+  Widget _buildPodcastList() {
+    return PodcastCardList(
+      podcasts: _podcasts,
+      onPodcastTap: (podcast) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PodcastPage(podcastId: podcast.id),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build podcast new releases list (episodes)
+  Widget _buildPodcastNewReleasesList() {
+    return SizedBox(
+      height: 220,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _podcastNewReleases.length,
+        itemBuilder: (context, index) {
+          final episode = _podcastNewReleases[index];
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () async {
+                // Phát episode ngay lập tức thay vì navigate đến PodcastPage
+                final episodePlayerFormat = episode.toPlayerFormat();
+                await _audioService.setPlaylist([episodePlayerFormat], 0);
+              },
+              child: SizedBox(
+                width: 156,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: episode.podcastImage != null
+                              ? Image.network(
+                                  episode.podcastImage!,
+                                  width: 156,
+                                  height: 156,
+                                  fit: BoxFit.cover,
+                                )
+                              : Container(
+                                  width: 156,
+                                  height: 156,
+                                  color: AppColors.surface,
+                                  child: const Icon(Icons.podcasts, size: 48),
+                                ),
+                        ),
+                        // Play overlay
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.black.withOpacity(0.3),
+                            ),
+                            child: const Icon(
+                              Icons.play_circle_filled,
+                              color: Colors.white,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            episode.title.length > 50
+                                ? '${episode.title.substring(0, 50)}...'
+                                : episode.title,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            episode.podcastTitle ?? '',
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Build recently played podcasts list
+  Widget _buildRecentPodcastsList() {
+    return PodcastCardList(
+      podcasts: _recentlyPlayedPodcasts,
+      onPodcastTap: (podcast) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PodcastPage(podcastId: podcast.id),
+          ),
+        );
       },
     );
   }
