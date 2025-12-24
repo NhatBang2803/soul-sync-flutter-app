@@ -43,6 +43,9 @@ class _HomePageState extends State<HomePage> {
   List<PodcastEpisode> _podcastNewReleases = [];
   List<Podcast> _recentlyPlayedPodcasts = [];
 
+  // Recommended songs
+  List<Song> _recommendedSongs = [];
+
   bool _isLoading = true;
   String? _error;
   int _selectedFilterIndex = 0;
@@ -85,10 +88,19 @@ class _HomePageState extends State<HomePage> {
       List<Map<String, dynamic>> artistsData = [];
       try {
         artistsData = await _supabaseService.getWeeklyArtistRanking();
+        print('Loaded ${artistsData.length} weekly artists');
+        // Print first 3 artists to debug
+        for (var i = 0; i < artistsData.length && i < 3; i++) {
+          print(
+            'Artist $i: ${artistsData[i]['name']} - weekly_plays: ${artistsData[i]['weekly_plays']}',
+          );
+        }
       } catch (e) {
+        print('Error loading weekly artists: $e');
         // Fallback to regular artists list
         try {
           artistsData = await _supabaseService.getArtists();
+          print('Fallback: Loaded ${artistsData.length} regular artists');
         } catch (e2) {
           print('Error loading artists: $e2');
         }
@@ -108,6 +120,16 @@ class _HomePageState extends State<HomePage> {
         quickAlbumsData = await _supabaseService.getRandomAlbums(4);
       } catch (e) {
         print('Error loading quick access albums: $e');
+      }
+
+      // Load recommended songs
+      // Load recommended songs
+      List<Map<String, dynamic>> recommendedData = [];
+      try {
+        // Use random songs as "Maybe you'll like"
+        recommendedData = await _supabaseService.getRandomSongs(10);
+      } catch (e) {
+        print('Error loading recommended songs: $e');
       }
 
       // Load podcasts (for Tab Tất cả and Podcast)
@@ -182,6 +204,9 @@ class _HomePageState extends State<HomePage> {
               .toList();
           _recentlyPlayedPodcasts = recentPodcastsData
               .map((json) => Podcast.fromJson(json))
+              .toList();
+          _recommendedSongs = recommendedData
+              .map((json) => Song.fromJson(json))
               .toList();
           _isLoading = false;
         });
@@ -307,13 +332,20 @@ class _HomePageState extends State<HomePage> {
                     fontSize: 12,
                   ),
                 ),
-                const Text(
-                  'Soul Sync',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                StreamBuilder<dynamic>(
+                  stream: _authService.userStream,
+                  builder: (context, snapshot) {
+                    final user = _authService.currentUser;
+                    return Text(
+                      user?.displayName ?? user?.username ?? 'Soul Sync',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
                 ),
               ],
             ),
@@ -364,12 +396,27 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// Tab "Tất cả" - Albums, New Releases, Podcasts, Recently Played
+  /// Tab "Tất cả" - Albums, Artists, New Releases, Podcasts, Recently Played
   Widget _buildAllTabContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildQuickAccessGrid(),
+        const SizedBox(height: 20),
+        // Recommended Songs Slider
+        if (_recommendedSongs.isNotEmpty) ...[
+          const SectionHeader(title: 'Có thể bạn sẽ thích'),
+          _buildRecommendedSlider(),
+          const SizedBox(height: 20),
+        ],
+        // Weekly Artist Ranking
+        if (_topArtists.isNotEmpty) ...[
+          const SectionHeader(title: 'Nghệ sĩ hàng đầu tuần này'),
+          _buildArtistRanking(),
+          const SizedBox(height: 20),
+        ],
+        // Song Rankings by Genre
+        ..._buildGenreRankings(),
         const SizedBox(height: 20),
         // New Releases (Music)
         if (_newReleases.isNotEmpty) ...[
@@ -632,11 +679,128 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // ==================== RECOMMENDED SONGS SLIDER ====================
+
+  /// Slider "Những bài hát bạn sẽ thích" - square shape, horizontal scroll
+  Widget _buildRecommendedSlider() {
+    return SizedBox(
+      height: 220,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _recommendedSongs.length,
+        itemBuilder: (context, index) {
+          final song = _recommendedSongs[index];
+          return _buildRecommendedSongItem(song, index);
+        },
+      ),
+    );
+  }
+
+  Widget _buildRecommendedSongItem(Song song, int index) {
+    return GestureDetector(
+      onTap: () => _onSongTap(song, _recommendedSongs, index),
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Square album art
+            Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Cover image
+                    song.coverUrl != null
+                        ? Image.network(
+                            song.coverUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _buildDefaultCover(),
+                          )
+                        : _buildDefaultCover(),
+                    // Gradient overlay
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.7),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Play icon
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.black,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Song title
+            Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            // Artist name
+            Text(
+              song.allArtists,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ==================== NEW RELEASES ====================
 
   Widget _buildNewReleases() {
     return SizedBox(
-      height: 180,
+      height: 200,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12),

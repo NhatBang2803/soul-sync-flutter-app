@@ -3,6 +3,7 @@ import '../models/models.dart';
 import '../services/supabase_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/queue_service.dart';
+import '../services/auth_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
 import '../components/add_to_playlist_dialog.dart';
@@ -19,6 +20,7 @@ class PlaylistPage extends StatefulWidget {
 
 class _PlaylistPageState extends State<PlaylistPage> {
   final SupabaseService _supabaseService = SupabaseService();
+  final AuthService _authService = AuthService();
   final AudioPlayerService _audioService = AudioPlayerService();
   final QueueService _queueService = QueueService();
 
@@ -64,6 +66,40 @@ class _PlaylistPageState extends State<PlaylistPage> {
           _error = e.toString();
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  Future<void> _togglePrivacy() async {
+    if (_playlist == null) return;
+
+    final newStatus = !_playlist!.isPublic;
+    try {
+      await _supabaseService.updatePlaylist(
+        playlistId: _playlist!.id,
+        isPublic: newStatus,
+      );
+
+      if (mounted) {
+        setState(() {
+          _playlist = _playlist!.copyWith(isPublic: newStatus);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              newStatus
+                  ? 'Đã chuyển sang công khai'
+                  : 'Đã chuyển sang riêng tư',
+            ),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+        );
       }
     }
   }
@@ -160,19 +196,27 @@ class _PlaylistPageState extends State<PlaylistPage> {
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
-        IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
-              shape: BoxShape.circle,
+        if (_playlist != null &&
+            _playlist!.ownerId == _authService.currentUserId)
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _playlist!.isPublic ? Icons.public : Icons.lock,
+                color: _playlist!.isPublic
+                    ? AppColors.primary
+                    : AppColors.textPrimary,
+              ),
             ),
-            child: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+            tooltip: _playlist!.isPublic
+                ? 'Đang công khai. Nhấn để chuyển riêng tư'
+                : 'Đang riêng tư. Nhấn để chuyển công khai',
+            onPressed: _togglePrivacy,
           ),
-          onPressed: () {
-            // Show playlist options
-          },
-        ),
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(

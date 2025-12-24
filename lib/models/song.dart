@@ -11,6 +11,9 @@ class Song {
   final int playCount;
   final String? genre;
   bool isLiked;
+  // Podcast support
+  final bool isPodcast;
+  final String? podcastId;
 
   Song({
     required this.id,
@@ -25,6 +28,8 @@ class Song {
     this.playCount = 0,
     this.genre,
     this.isLiked = false,
+    this.isPodcast = false,
+    this.podcastId,
   });
 
   /// Get primary artist name (first in list)
@@ -77,6 +82,9 @@ class Song {
       playCount: json['play_count'] ?? 0,
       genre: json['genre_name'] ?? json['genre'],
       isLiked: json['is_liked'] ?? false,
+      isPodcast: json['isPodcast'] == true || json['is_podcast'] == true,
+      podcastId:
+          json['podcastId']?.toString() ?? json['podcast_id']?.toString(),
     );
   }
 
@@ -97,7 +105,9 @@ class Song {
       id: json['id']?.toString() ?? '',
       title: json['songName'] ?? json['title'] ?? 'Unknown',
       artistNames: artistNames,
-      artistIds: [],
+      artistIds: json['artistIds'] != null && json['artistIds'] is List
+          ? List<String>.from(json['artistIds'].map((e) => e.toString()))
+          : [],
       album: json['albumName'] ?? json['album_name'],
       albumId: json['albumId']?.toString(),
       duration: json['duration'] ?? 0,
@@ -105,6 +115,8 @@ class Song {
       audioUrl: json['audioUrl'] ?? json['audio_url'],
       playCount: 0,
       isLiked: false,
+      isPodcast: json['isPodcast'] == true,
+      podcastId: json['podcastId']?.toString(),
     );
   }
 
@@ -124,6 +136,8 @@ class Song {
       'play_count': playCount,
       'genre': genre,
       'is_liked': isLiked,
+      'is_podcast': isPodcast,
+      'podcast_id': podcastId,
     };
   }
 
@@ -134,10 +148,13 @@ class Song {
       'songName': title,
       'artistName': allArtists,
       'artistNames': artistNames,
+      'artistIds': artistIds,
       'albumName': album,
       'coverUrl': coverUrl,
       'audioUrl': audioUrl,
       'duration': duration,
+      'isPodcast': isPodcast,
+      'podcastId': podcastId,
     };
   }
 
@@ -161,6 +178,8 @@ class Song {
     int? playCount,
     String? genre,
     bool? isLiked,
+    bool? isPodcast,
+    String? podcastId,
   }) {
     return Song(
       id: id ?? this.id,
@@ -175,6 +194,8 @@ class Song {
       playCount: playCount ?? this.playCount,
       genre: genre ?? this.genre,
       isLiked: isLiked ?? this.isLiked,
+      isPodcast: isPodcast ?? this.isPodcast,
+      podcastId: podcastId ?? this.podcastId,
     );
   }
 

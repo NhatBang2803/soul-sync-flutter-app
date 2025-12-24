@@ -12,16 +12,19 @@ class CloudinaryService {
 
   /// Upload file audio (MP3) lên Cloudinary
   /// Returns: Map chứa secure_url và public_id
-  Future<Map<String, dynamic>> uploadAudio(File file, {String? fileName}) async {
+  Future<Map<String, dynamic>> uploadAudio(
+    File file, {
+    String? fileName,
+  }) async {
     final cloudName = AppConfig.cloudinaryCloudName;
     final uploadPreset = AppConfig.cloudinaryUploadPreset;
-    
+
     if (cloudName.isEmpty) {
       throw Exception('Cloudinary cloud name is not configured');
     }
 
     final url = 'https://api.cloudinary.com/v1_1/$cloudName/raw/upload';
-    
+
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(
         file.path,
@@ -34,7 +37,7 @@ class CloudinaryService {
 
     try {
       final response = await _dio.post(url, data: formData);
-      
+
       if (response.statusCode == 200) {
         return {
           'secure_url': response.data['secure_url'],
@@ -52,16 +55,20 @@ class CloudinaryService {
   }
 
   /// Upload hình ảnh (cover art) lên Cloudinary
-  Future<Map<String, dynamic>> uploadImage(File file, {String? fileName, String folder = 'covers'}) async {
+  Future<Map<String, dynamic>> uploadImage(
+    File file, {
+    String? fileName,
+    String folder = 'covers',
+  }) async {
     final cloudName = AppConfig.cloudinaryCloudName;
     final uploadPreset = AppConfig.cloudinaryUploadPreset;
-    
+
     if (cloudName.isEmpty) {
       throw Exception('Cloudinary cloud name is not configured');
     }
 
     final url = 'https://api.cloudinary.com/v1_1/$cloudName/image/upload';
-    
+
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(
         file.path,
@@ -69,13 +76,11 @@ class CloudinaryService {
       ),
       'upload_preset': uploadPreset,
       'folder': 'soulsync/$folder',
-      // Auto optimize images
-      'transformation': 'c_fill,w_500,h_500,q_auto',
     });
 
     try {
       final response = await _dio.post(url, data: formData);
-      
+
       if (response.statusCode == 200) {
         return {
           'secure_url': response.data['secure_url'],
@@ -87,18 +92,28 @@ class CloudinaryService {
         throw Exception('Upload failed: ${response.statusMessage}');
       }
     } on DioException catch (e) {
-      throw Exception('Upload error: ${e.message}');
+      // Log detailed error from Cloudinary
+      final errorData = e.response?.data;
+      print('Cloudinary error response: $errorData');
+      print('Cloudinary status code: ${e.response?.statusCode}');
+      throw Exception(
+        'Upload error: ${errorData?['error']?['message'] ?? e.message}',
+      );
     }
   }
 
   /// Upload từ URL (ví dụ: từ internet)
-  Future<Map<String, dynamic>> uploadFromUrl(String sourceUrl, {String type = 'image'}) async {
+  Future<Map<String, dynamic>> uploadFromUrl(
+    String sourceUrl, {
+    String type = 'image',
+  }) async {
     final cloudName = AppConfig.cloudinaryCloudName;
     final uploadPreset = AppConfig.cloudinaryUploadPreset;
-    
+
     final resourceType = type == 'audio' ? 'raw' : 'image';
-    final url = 'https://api.cloudinary.com/v1_1/$cloudName/$resourceType/upload';
-    
+    final url =
+        'https://api.cloudinary.com/v1_1/$cloudName/$resourceType/upload';
+
     final formData = FormData.fromMap({
       'file': sourceUrl,
       'upload_preset': uploadPreset,
@@ -107,7 +122,7 @@ class CloudinaryService {
 
     try {
       final response = await _dio.post(url, data: formData);
-      
+
       if (response.statusCode == 200) {
         return {
           'secure_url': response.data['secure_url'],
@@ -131,7 +146,8 @@ class CloudinaryService {
   }
 
   /// Tạo URL transform cho image
-  static String getTransformedImageUrl(String publicId, {
+  static String getTransformedImageUrl(
+    String publicId, {
     int? width,
     int? height,
     String? crop,
@@ -139,14 +155,16 @@ class CloudinaryService {
   }) {
     final cloudName = AppConfig.cloudinaryCloudName;
     final transforms = <String>[];
-    
+
     if (width != null) transforms.add('w_$width');
     if (height != null) transforms.add('h_$height');
     if (crop != null) transforms.add('c_$crop');
     if (quality != null) transforms.add('q_$quality');
-    
-    final transformString = transforms.isNotEmpty ? '${transforms.join(',')}/' : '';
-    
+
+    final transformString = transforms.isNotEmpty
+        ? '${transforms.join(',')}/'
+        : '';
+
     return 'https://res.cloudinary.com/$cloudName/image/upload/$transformString$publicId';
   }
 

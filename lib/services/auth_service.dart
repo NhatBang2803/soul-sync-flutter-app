@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart' as app_user;
+import 'cloudinary_service.dart';
 
 /// Authentication result wrapper
 class AuthResult {
@@ -43,12 +46,15 @@ class AuthService {
   /// Get current user profile (from custom auth)
   app_user.User? get currentUser => _customAuthUser;
 
-  /// Stream of auth state changes
-  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+  /// Stream controller for user updates
+  final _userController = StreamController<app_user.User?>.broadcast();
+
+  /// Stream of user profile changes
+  Stream<app_user.User?> get userStream => _userController.stream;
 
   // ==================== SIGN UP ====================
 
-  /// Đăng ký tài khoản mới với username, email, password
+  /// Đăng ký tài khoản mới với username, email, password (Custom Auth - không cần email confirmation)
   Future<AuthResult> signUp({
     required String username,
     required String email,
@@ -73,47 +79,75 @@ class AuthService {
       }
 
       // Check if username already exists
-      final existingUser = await _client
+      final existingUsername = await _client
           .from('users')
           .select('username')
           .eq('username', username)
           .maybeSingle();
 
-      if (existingUser != null) {
+      if (existingUsername != null) {
         return AuthResult.failure('Username đã được sử dụng');
       }
 
-      // Sign up with Supabase Auth
-      final response = await _client.auth.signUp(
-        email: email,
-        password: password,
-        data: {'username': username, 'display_name': username},
-      );
+      // Check if email already exists
+      final existingEmail = await _client
+          .from('users')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
 
-      if (response.user == null) {
-        return AuthResult.failure('Đăng ký thất bại. Vui lòng thử lại.');
+      if (existingEmail != null) {
+        return AuthResult.failure('Email đã được đăng ký');
       }
 
-      // Create user profile in users table
-      await _client.from('users').upsert({
-        'id': response.user!.id,
+      // Create password hash (same format as admin-web)
+      final passwordHash = _createPasswordHash(password);
+
+      // Create user directly in users table (Custom Auth - no Supabase Auth)
+      final now = DateTime.now().toIso8601String();
+      await _client.from('users').insert({
         'username': username,
         'email': email,
         'display_name': username,
+        'password_hash': passwordHash,
         'auth_method': 'local',
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'created_at': now,
+        'updated_at': now,
       });
 
       return AuthResult.success(
-        message:
-            'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.',
+        message: 'Đăng ký thành công! Bạn có thể đăng nhập ngay.',
       );
-    } on AuthException catch (e) {
-      return AuthResult.failure(_mapAuthError(e.message));
+    } on PostgrestException catch (e) {
+      if (e.message.contains('duplicate key')) {
+        if (e.message.contains('username')) {
+          return AuthResult.failure('Username đã được sử dụng');
+        }
+        if (e.message.contains('email')) {
+          return AuthResult.failure('Email đã được đăng ký');
+        }
+      }
+      return AuthResult.failure('Đăng ký thất bại: ${e.message}');
     } catch (e) {
       return AuthResult.failure('Đã xảy ra lỗi: ${e.toString()}');
     }
+  }
+
+  /// Create password hash with random salt (same format as admin-web)
+  String _createPasswordHash(String password) {
+    // Generate random salt (16 hex chars)
+    final random = DateTime.now().millisecondsSinceEpoch.toString();
+    final saltBytes = utf8.encode(random);
+    final saltDigest = sha256.convert(saltBytes);
+    final salt = saltDigest.toString().substring(0, 16);
+
+    // Hash password with salt
+    final bytes = utf8.encode(salt + password);
+    final digest = sha256.convert(bytes);
+    final hashHex = digest.toString();
+
+    // Return format: salt:hash
+    return '$salt:$hashHex';
   }
 
   // ==================== SIGN IN ====================
@@ -190,6 +224,7 @@ class AuthService {
           if (response.user != null) {
             final userProfile = await getUserProfile(response.user!.id);
             _customAuthUser = userProfile; // Also save to custom auth
+            _userController.add(_customAuthUser);
             return AuthResult.success(
               user: userProfile,
               message: 'Đăng nhập thành công!',
@@ -213,6 +248,7 @@ class AuthService {
       // Password verified! Save user to custom auth state
       final userProfile = app_user.User.fromJson(userRecord);
       _customAuthUser = userProfile;
+      _userController.add(_customAuthUser);
       print('Custom auth user saved: ${_customAuthUser?.id}');
 
       return AuthResult.success(
@@ -387,6 +423,59 @@ class AuthService {
     }
   }
 
+  // ==================== USER PROFILE ====================
+
+  /// Upload avatar image to Cloudinary
+  /// Returns the public URL of the uploaded image
+  Future<String?> uploadAvatar(File imageFile) async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) {
+        throw Exception('Chưa đăng nhập');
+      }
+
+      // Get file extension
+      final ext = imageFile.path.split('.').last.toLowerCase();
+      final allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      if (!allowedExts.contains(ext)) {
+        throw Exception('Chỉ hỗ trợ định dạng: ${allowedExts.join(', ')}');
+      }
+
+      // Create unique filename: userId_timestamp.ext
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = '${userId}_$timestamp.$ext';
+
+      // Upload to Cloudinary
+      final cloudinaryService = CloudinaryService();
+      final result = await cloudinaryService.uploadImage(
+        imageFile,
+        fileName: fileName,
+        folder: 'avatars',
+      );
+
+      // Return the secure URL from Cloudinary
+      return result['secure_url'] as String?;
+    } catch (e) {
+      print('Error uploading avatar: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove avatar from storage and clear from profile
+  Future<AuthResult> removeAvatar() async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) {
+        return AuthResult.failure('Chưa đăng nhập');
+      }
+
+      // Update profile to remove avatar URL
+      return await updateProfile(avatarUrl: '');
+    } catch (e) {
+      return AuthResult.failure('Xóa ảnh thất bại: ${e.toString()}');
+    }
+  }
+
   /// Cập nhật user profile
   Future<AuthResult> updateProfile({
     String? displayName,
@@ -423,6 +512,11 @@ class AuthService {
       await _client.from('users').update(updates).eq('id', userId);
 
       final updatedUser = await getUserProfile(userId);
+
+      // Update local state and notify listeners
+      _customAuthUser = updatedUser;
+      _userController.add(_customAuthUser);
+
       return AuthResult.success(
         user: updatedUser,
         message: 'Cập nhật thành công!',

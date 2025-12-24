@@ -9,6 +9,10 @@ import 'services/auth_service.dart';
 import 'core/core.dart';
 import 'components/queue_panel.dart';
 import 'components/sleep_timer_dialog.dart';
+import 'components/add_to_playlist_dialog.dart';
+import 'pages/podcast_page.dart';
+import 'pages/artist_page.dart';
+import 'models/song.dart';
 
 class NowPlayingPage extends StatefulWidget {
   final VoidCallback? onClose;
@@ -41,6 +45,7 @@ class _NowPlayingPageState extends State<NowPlayingPage>
   Duration _duration = Duration.zero;
   Map<String, dynamic>? _currentSong;
   bool _isLiked = false;
+  bool _isSaved = false; // For podcast save status
 
   @override
   void initState() {
@@ -48,7 +53,7 @@ class _NowPlayingPageState extends State<NowPlayingPage>
     _initAnimations();
     _initPlayerState();
     _setupListeners();
-    _checkIfLiked();
+    _checkIfLikedOrSaved();
   }
 
   void _initAnimations() {
@@ -125,9 +130,9 @@ class _NowPlayingPageState extends State<NowPlayingPage>
         } else if (!state.playing && wasPlaying) {
           _stopPulseSimulation();
         }
-        // Re-check like status when song changes
+        // Re-check like/save status when song changes
         if (songChanged) {
-          _checkIfLiked();
+          _checkIfLikedOrSaved();
         }
       }
     });
@@ -149,21 +154,40 @@ class _NowPlayingPageState extends State<NowPlayingPage>
     });
   }
 
-  Future<void> _checkIfLiked() async {
+  /// Check if song is liked or podcast is saved
+  Future<void> _checkIfLikedOrSaved() async {
     final userId = _authService.currentUserId;
-    final songId = _currentSong?['id'];
-    if (userId == null || songId == null) return;
+    if (userId == null || _currentSong == null) return;
+
+    final isPodcast = _currentSong?['isPodcast'] == true;
 
     try {
-      final liked = await _supabaseService.isSongLiked(userId, songId);
-      if (mounted) {
-        setState(() => _isLiked = liked);
+      if (isPodcast) {
+        final podcastId = _currentSong?['podcastId'];
+        if (podcastId != null) {
+          final saved = await _supabaseService.isPodcastSaved(
+            userId,
+            podcastId,
+          );
+          if (mounted) {
+            setState(() => _isSaved = saved);
+          }
+        }
+      } else {
+        final songId = _currentSong?['id'];
+        if (songId != null) {
+          final liked = await _supabaseService.isSongLiked(userId, songId);
+          if (mounted) {
+            setState(() => _isLiked = liked);
+          }
+        }
       }
     } catch (e) {
       // Ignore error
     }
   }
 
+  /// Toggle like for song
   Future<void> _toggleLike() async {
     final userId = _authService.currentUserId;
     final songId = _currentSong?['id'];
@@ -177,6 +201,37 @@ class _NowPlayingPageState extends State<NowPlayingPage>
       }
       if (mounted) {
         setState(() => _isLiked = !_isLiked);
+      }
+    } catch (e) {
+      // Show error snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: ${e.toString()}')));
+      }
+    }
+  }
+
+  /// Toggle save for podcast
+  Future<void> _toggleSave() async {
+    final userId = _authService.currentUserId;
+    final podcastId = _currentSong?['podcastId'];
+    if (userId == null || podcastId == null) return;
+
+    try {
+      if (_isSaved) {
+        await _supabaseService.unsavePodcast(userId, podcastId);
+      } else {
+        await _supabaseService.savePodcast(userId, podcastId);
+      }
+      if (mounted) {
+        setState(() => _isSaved = !_isSaved);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isSaved ? 'Đã lưu podcast' : 'Đã bỏ lưu podcast'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       // Show error snackbar
@@ -323,11 +378,11 @@ class _NowPlayingPageState extends State<NowPlayingPage>
               ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            color: AppColors.textPrimary,
-            onPressed: () {},
-          ),
+          // Artists dropdown for songs, hidden for podcasts
+          if (_currentSong?['isPodcast'] != true)
+            _buildArtistsDropdownButton()
+          else
+            const SizedBox(width: 48), // Placeholder for podcast
         ],
       ),
     );
@@ -647,17 +702,27 @@ class _NowPlayingPageState extends State<NowPlayingPage>
   }
 
   Widget _buildBottomActions() {
+    final isPodcast = _currentSong?['isPodcast'] == true;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Like
-          IconButton(
-            icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
-            color: _isLiked ? Colors.red : AppColors.textSecondary,
-            onPressed: _toggleLike,
-          ),
+          // Like (for songs) or Save (for podcasts)
+          isPodcast
+              ? IconButton(
+                  icon: Icon(_isSaved ? Icons.bookmark : Icons.bookmark_border),
+                  color: _isSaved ? AppColors.primary : AppColors.textSecondary,
+                  onPressed: _toggleSave,
+                  tooltip: _isSaved ? 'Bỏ lưu podcast' : 'Lưu podcast',
+                )
+              : IconButton(
+                  icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
+                  color: _isLiked ? Colors.red : AppColors.textSecondary,
+                  onPressed: _toggleLike,
+                  tooltip: _isLiked ? 'Bỏ thích' : 'Thích',
+                ),
           // Queue
           IconButton(
             icon: Stack(
@@ -698,23 +763,246 @@ class _NowPlayingPageState extends State<NowPlayingPage>
             ),
             onPressed: _openSleepTimer,
           ),
-          // View Artist
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            color: AppColors.textSecondary,
-            onPressed: () {
-              // Navigate to artist page if artist info is available
-              final artistIds = _currentSong?['artistIds'] as List?;
-              if (artistIds != null && artistIds.isNotEmpty) {
-                Navigator.pushNamed(
-                  context,
-                  '/artist',
-                  arguments: artistIds[0],
-                );
-              }
-            },
-          ),
+          // Add to Playlist (for songs) or View Podcast (for podcasts)
+          isPodcast
+              ? IconButton(
+                  icon: const Icon(Icons.podcasts),
+                  color: AppColors.textSecondary,
+                  tooltip: 'Xem podcast',
+                  onPressed: () {
+                    final podcastId = _currentSong?['podcastId'];
+                    if (podcastId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              PodcastPage(podcastId: podcastId),
+                        ),
+                      );
+                    }
+                  },
+                )
+              : IconButton(
+                  icon: const Icon(Icons.playlist_add),
+                  color: AppColors.textSecondary,
+                  tooltip: 'Thêm vào playlist',
+                  onPressed: () => _showAddToPlaylistDialog(),
+                ),
         ],
+      ),
+    );
+  }
+
+  /// Widget hiển thị dropdown danh sách nghệ sĩ khi ấn vào icon user
+  Widget _buildArtistsDropdownButton() {
+    final artistNames = _currentSong?['artistNames'] as List?;
+    final artistIds = _currentSong?['artistIds'] as List?;
+
+    return PopupMenuButton<int>(
+      icon: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Icon(Icons.people, color: AppColors.textPrimary, size: 24),
+      ),
+      tooltip: 'Xem nghệ sĩ',
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      offset: const Offset(0, 48),
+      onSelected: (index) async {
+        if (artistNames == null || index >= artistNames.length) return;
+
+        final name = artistNames[index]?.toString() ?? '';
+        String? artistId;
+
+        // Try to get ID from artistIds list
+        if (artistIds != null && index < artistIds.length) {
+          artistId = artistIds[index]?.toString();
+        }
+
+        // If no ID, try to find artist by name
+        if (artistId == null || artistId.isEmpty) {
+          try {
+            final artists = await _supabaseService.searchArtists(
+              name,
+              limit: 1,
+            );
+            if (artists.isNotEmpty) {
+              artistId = artists[0]['id']?.toString();
+            }
+          } catch (e) {
+            print('Error finding artist by name: $e');
+          }
+        }
+
+        if (artistId != null && artistId.isNotEmpty && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ArtistPage(artistId: artistId!),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Không tìm thấy nghệ sĩ "$name"'),
+              backgroundColor: Colors.orange[700],
+            ),
+          );
+        }
+      },
+      itemBuilder: (context) {
+        if (artistNames == null || artistNames.isEmpty) {
+          return [
+            const PopupMenuItem<int>(
+              enabled: false,
+              child: Text(
+                'Không có thông tin nghệ sĩ',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ];
+        }
+
+        return List.generate(artistNames.length, (index) {
+          final name = artistNames[index]?.toString() ?? 'Unknown';
+          // Get artistId if available for fetching image
+          final artistId = (artistIds != null && index < artistIds.length)
+              ? artistIds[index]?.toString()
+              : null;
+
+          return PopupMenuItem<int>(
+            value: index,
+            enabled: true,
+            child: _ArtistMenuItem(
+              name: name,
+              artistId: artistId,
+              supabaseService: _supabaseService,
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  /// Hiển thị dialog thêm bài hát vào playlist
+  void _showAddToPlaylistDialog() {
+    if (_currentSong == null) return;
+
+    final songId = _currentSong!['id']?.toString() ?? '';
+    final songTitle = _currentSong!['songName'] ?? _currentSong!['title'] ?? '';
+
+    // Create Song model for queue operations
+    final song = Song.fromPlayerFormat(_currentSong!);
+
+    AddToPlaylistDialog.show(context, songId, songTitle, song: song);
+  }
+}
+
+/// Widget hiển thị từng item nghệ sĩ trong dropdown, fetch ảnh từ database
+class _ArtistMenuItem extends StatelessWidget {
+  final String name;
+  final String? artistId;
+  final SupabaseService supabaseService;
+
+  const _ArtistMenuItem({
+    required this.name,
+    this.artistId,
+    required this.supabaseService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      // Fetch artist image from database
+      future: _fetchArtistImage(),
+      builder: (context, snapshot) {
+        final imageUrl = snapshot.data;
+
+        return Row(
+          children: [
+            // Artist avatar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                    )
+                  : _buildDefaultAvatar(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                name,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              size: 16,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<String?> _fetchArtistImage() async {
+    // First try to get by ID
+    if (artistId != null && artistId!.isNotEmpty) {
+      try {
+        final artist = await supabaseService.getArtistById(artistId!);
+        return artist?['image_url']?.toString();
+      } catch (e) {
+        // Fallback to search by name
+      }
+    }
+
+    // Search by name
+    try {
+      final artists = await supabaseService.searchArtists(name, limit: 1);
+      if (artists.isNotEmpty) {
+        return artists[0]['image_url']?.toString();
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: AppColors.primaryGradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
       ),
     );
   }

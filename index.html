@@ -4,300 +4,488 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard Mobile</title>
+    <title>Soul Healing Music Player v2</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Outfit', 'sans-serif'] },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* Custom scrollbar cho nó nghệ */
-        ::-webkit-scrollbar {
-            width: 4px;
-            height: 4px;
+        .hide-scroll::-webkit-scrollbar {
+            display: none;
         }
 
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
+        .hide-scroll {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
 
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.95);
+        /* Glass Styles */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        /* Input Search Style */
+        .glass-input {
+            background: rgba(255, 255, 255, 0.4);
             backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.6);
+            outline: none;
+            border-color: rgba(168, 85, 247, 0.5);
         }
     </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800 font-sans antialiased">
+<body class="bg-gray-50 flex items-center justify-center min-h-screen font-sans selection:bg-purple-300">
 
-    <div id="overlay" onclick="closeAll()"
-        class="fixed inset-0 bg-black/50 z-40 hidden transition-opacity duration-300"></div>
+    <div
+        class="relative w-full max-w-md h-[900px] bg-white overflow-hidden shadow-2xl sm:rounded-[2.5rem] border-[6px] border-white/60">
 
-    <aside id="sidebar"
-        class="fixed top-0 left-0 w-64 h-full bg-slate-900 text-white transform -translate-x-full transition-transform duration-300 z-50 shadow-2xl flex flex-col">
-        <div class="p-6 border-b border-slate-700 flex justify-between items-center">
-            <h2 class="text-2xl font-bold tracking-tighter text-indigo-400">DEV<span class="text-white">ADMIN</span>
-            </h2>
-            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white"><i
-                    class="fa-solid fa-xmark text-xl"></i></button>
-        </div>
-        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
-            <a href="#"
-                class="flex items-center space-x-3 p-3 rounded-lg bg-indigo-600 text-white shadow-lg shadow-indigo-500/30">
-                <i class="fa-solid fa-chart-line w-6 text-center"></i><span>Dashboard</span>
-            </a>
-            <a href="#"
-                class="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800 text-slate-300 transition-colors">
-                <i class="fa-solid fa-users w-6 text-center"></i><span>Users CRUD</span>
-            </a>
-            <a href="#"
-                class="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800 text-slate-300 transition-colors">
-                <i class="fa-solid fa-box w-6 text-center"></i><span>Products</span>
-            </a>
-            <a href="#"
-                class="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800 text-slate-300 transition-colors">
-                <i class="fa-solid fa-gear w-6 text-center"></i><span>Settings</span>
-            </a>
-        </nav>
-        <div class="p-4 border-t border-slate-700">
-            <button class="flex items-center space-x-3 w-full p-2 text-red-400 hover:text-red-300">
-                <i class="fa-solid fa-right-from-bracket"></i><span>Logout</span>
-            </button>
-        </div>
-    </aside>
-
-    <div class="flex flex-col min-h-screen">
-
-        <header
-            class="sticky top-0 z-30 glass-effect border-b border-gray-200 px-4 py-3 flex justify-between items-center shadow-sm">
-            <button onclick="toggleSidebar()" class="p-2 rounded-md hover:bg-gray-100 text-gray-600">
-                <i class="fa-solid fa-bars text-xl"></i>
-            </button>
-            <h1 class="font-bold text-lg text-gray-700">Dashboard</h1>
+        <div class="absolute inset-0 bg-white z-0">
             <div
-                class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border border-indigo-200">
-                A
+                class="absolute top-[-10%] left-[-20%] w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob">
             </div>
-        </header>
-
-        <main class="flex-1 p-4 space-y-6">
-
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                    <div class="text-xs text-gray-500 uppercase font-semibold">Total Users</div>
-                    <div class="text-2xl font-bold text-indigo-600 mt-1">1,245</div>
-                    <div class="text-xs text-green-500 mt-1"><i class="fa-solid fa-arrow-up"></i> 12%</div>
-                </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                    <div class="text-xs text-gray-500 uppercase font-semibold">Revenue</div>
-                    <div class="text-2xl font-bold text-emerald-600 mt-1">$34k</div>
-                    <div class="text-xs text-green-500 mt-1"><i class="fa-solid fa-arrow-up"></i> 5%</div>
-                </div>
+            <div
+                class="absolute top-[30%] right-[-20%] w-80 h-80 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob animation-delay-2000">
             </div>
-
-            <section>
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-bold text-gray-800">User Management</h2>
-                    <button onclick="openModal('create')"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md transition-transform active:scale-95 flex items-center gap-2">
-                        <i class="fa-solid fa-plus"></i> Add New
-                    </button>
-                </div>
-
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm whitespace-nowrap">
-                            <thead class="bg-gray-50 border-b border-gray-100">
-                                <tr>
-                                    <th class="p-4 font-semibold text-gray-600">Name</th>
-                                    <th class="p-4 font-semibold text-gray-600">Role</th>
-                                    <th class="p-4 font-semibold text-gray-600">Status</th>
-                                    <th class="p-4 font-semibold text-gray-600 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                <tr class="hover:bg-gray-50 transition-colors">
-                                    <td class="p-4 font-medium text-gray-900 flex items-center gap-3">
-                                        <div
-                                            class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-bold">
-                                            JD</div>
-                                        John Doe
-                                    </td>
-                                    <td class="p-4 text-gray-500">Admin</td>
-                                    <td class="p-4">
-                                        <span
-                                            class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>
-                                    </td>
-                                    <td class="p-4 text-right space-x-1">
-                                        <button onclick="openModal('edit')"
-                                            class="p-2 text-indigo-600 hover:bg-indigo-50 rounded"><i
-                                                class="fa-solid fa-pen"></i></button>
-                                        <button onclick="openDeleteModal()"
-                                            class="p-2 text-red-500 hover:bg-red-50 rounded"><i
-                                                class="fa-solid fa-trash"></i></button>
-                                    </td>
-                                </tr>
-                                <tr class="hover:bg-gray-50 transition-colors">
-                                    <td class="p-4 font-medium text-gray-900 flex items-center gap-3">
-                                        <div
-                                            class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
-                                            SA</div>
-                                        Sarah Ann
-                                    </td>
-                                    <td class="p-4 text-gray-500">Editor</td>
-                                    <td class="p-4">
-                                        <span
-                                            class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Offline</span>
-                                    </td>
-                                    <td class="p-4 text-right space-x-1">
-                                        <button onclick="openModal('edit')"
-                                            class="p-2 text-indigo-600 hover:bg-indigo-50 rounded"><i
-                                                class="fa-solid fa-pen"></i></button>
-                                        <button onclick="openDeleteModal()"
-                                            class="p-2 text-red-500 hover:bg-red-50 rounded"><i
-                                                class="fa-solid fa-trash"></i></button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <div id="crudModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-        <div
-            class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0 modal-content">
-            <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                <h3 id="modalTitle" class="font-bold text-lg text-gray-800">Add User</h3>
-                <button onclick="closeAll()" class="text-gray-400 hover:text-gray-600"><i
-                        class="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                    <input type="text" placeholder="e.g. Elon Musk"
-                        class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                    <select
-                        class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <option>Admin</option>
-                        <option>Editor</option>
-                        <option>Viewer</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                    <div class="flex gap-4 mt-2">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="status" class="text-indigo-600 focus:ring-indigo-500" checked>
-                            <span class="text-sm">Active</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="status" class="text-gray-600 focus:ring-gray-500">
-                            <span class="text-sm">Inactive</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-            <div class="p-5 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-                <button onclick="closeAll()"
-                    class="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-200 font-medium text-sm">Cancel</button>
-                <button onclick="closeAll()"
-                    class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm shadow-lg shadow-indigo-500/30">Save
-                    Changes</button>
+            <div
+                class="absolute bottom-[-10%] left-[10%] w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob animation-delay-4000">
             </div>
         </div>
-    </div>
 
-    <div id="deleteModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-        <div
-            class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center transform transition-all scale-95 opacity-0 modal-content">
-            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
-                <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+        <div class="relative z-10 h-full flex flex-col">
+
+            <div
+                class="px-6 pt-10 pb-2 flex justify-between items-center bg-gradient-to-b from-white/60 to-transparent z-20">
+                <div id="header-text">
+                    <p class="text-gray-500 text-xs font-medium uppercase tracking-wider">Xin chào,</p>
+                    <h1 class="text-2xl font-bold text-gray-800">Minh Nhật</h1>
+                </div>
+                <div class="relative">
+                    <div
+                        class="w-10 h-10 rounded-full p-0.5 glass-card overflow-hidden cursor-pointer hover:scale-105 transition">
+                        <img src="https://ui-avatars.com/api/?name=Minh+Nhat&background=1e1e1e&color=fff"
+                            class="w-full h-full rounded-full object-cover">
+                    </div>
+                </div>
             </div>
-            <h3 class="font-bold text-lg text-gray-800 mb-2">Delete User?</h3>
-            <p class="text-sm text-gray-500 mb-6">Are you sure you want to delete this item? This action cannot be
-                undone.</p>
-            <div class="flex justify-center gap-3">
-                <button onclick="closeAll()"
-                    class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium text-sm w-full">No,
-                    cancel</button>
-                <button onclick="closeAll()"
-                    class="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium text-sm w-full shadow-lg shadow-red-500/30">Yes,
-                    delete</button>
+
+            <div class="flex-1 overflow-y-auto hide-scroll pb-28 px-6 space-y-8 mt-2 relative">
+
+                <div id="tab-home" class="space-y-8 transition-opacity duration-300">
+
+                    <section>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div
+                                class="glass-card p-2 rounded-xl flex items-center gap-3 hover:bg-white/60 transition cursor-pointer group">
+                                <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150&q=80"
+                                    class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition">
+                                <span class="text-sm font-semibold text-gray-700 truncate">Nhạc Lofi</span>
+                            </div>
+                            <div
+                                class="glass-card p-2 rounded-xl flex items-center gap-3 hover:bg-white/60 transition cursor-pointer group">
+                                <img src="https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=150&q=80"
+                                    class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition">
+                                <span class="text-sm font-semibold text-gray-700 truncate">Yêu Thích</span>
+                            </div>
+                            <div
+                                class="glass-card p-2 rounded-xl flex items-center gap-3 hover:bg-white/60 transition cursor-pointer group">
+                                <img src="https://images.unsplash.com/photo-1459749411177-287ce14650db?w=150&q=80"
+                                    class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition">
+                                <span class="text-sm font-semibold text-gray-700 truncate">Chill Sáng</span>
+                            </div>
+                            <div
+                                class="glass-card p-2 rounded-xl flex items-center gap-3 hover:bg-white/60 transition cursor-pointer group">
+                                <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&q=80"
+                                    class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition">
+                                <span class="text-sm font-semibold text-gray-700 truncate">Tập Trung</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2 class="text-lg font-bold text-gray-800 mb-3">Nghệ sĩ của tuần</h2>
+                        <div class="flex space-x-5 overflow-x-auto hide-scroll pb-2">
+                            <div class="flex flex-col items-center flex-shrink-0 space-y-2">
+                                <div class="w-20 h-20 rounded-full p-1 border border-purple-300 relative group">
+                                    <img src="https://images.unsplash.com/photo-1520333789090-1afc82db536a?w=200&q=80"
+                                        class="w-full h-full rounded-full object-cover group-hover:scale-105 transition duration-300">
+                                </div>
+                                <span class="text-xs font-medium text-gray-600">Sơn Tùng</span>
+                            </div>
+                            <div class="flex flex-col items-center flex-shrink-0 space-y-2">
+                                <div class="w-20 h-20 rounded-full p-1 border border-pink-300 relative group">
+                                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80"
+                                        class="w-full h-full rounded-full object-cover group-hover:scale-105 transition duration-300">
+                                </div>
+                                <span class="text-xs font-medium text-gray-600">Min</span>
+                            </div>
+                            <div class="flex flex-col items-center flex-shrink-0 space-y-2">
+                                <div class="w-20 h-20 rounded-full p-1 border border-blue-300 relative group">
+                                    <img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&q=80"
+                                        class="w-full h-full rounded-full object-cover group-hover:scale-105 transition duration-300">
+                                </div>
+                                <span class="text-xs font-medium text-gray-600">Đen Vâu</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <div class="flex justify-between items-end mb-3">
+                            <h2 class="text-lg font-bold text-gray-800">Album tuyển chọn</h2>
+                        </div>
+                        <div class="flex space-x-4 overflow-x-auto hide-scroll pb-2">
+                            <div class="w-36 flex-shrink-0 group">
+                                <div class="relative w-36 h-36 rounded-2xl overflow-hidden shadow-lg">
+                                    <img src="https://images.unsplash.com/photo-1619983081563-430f63602796?w=300&q=80"
+                                        class="w-full h-full object-cover transition duration-500 group-hover:scale-110">
+                                    <div class="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition"></div>
+                                </div>
+                                <p class="mt-2 text-sm font-semibold text-gray-800">Piano Solo</p>
+                                <p class="text-xs text-gray-500">Thư giãn</p>
+                            </div>
+                            <div class="w-36 flex-shrink-0 group">
+                                <div class="relative w-36 h-36 rounded-2xl overflow-hidden shadow-lg">
+                                    <img src="https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=300&q=80"
+                                        class="w-full h-full object-cover transition duration-500 group-hover:scale-110">
+                                </div>
+                                <p class="mt-2 text-sm font-semibold text-gray-800">Morning Coffee</p>
+                                <p class="text-xs text-gray-500">Acoustic</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="space-y-6">
+                        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <i data-lucide="bar-chart-2" class="w-6 h-6 text-purple-600"></i> Bảng Xếp Hạng
+                        </h2>
+
+                        <div class="glass-panel rounded-3xl p-5">
+                            <div class="flex items-center gap-2 mb-4">
+                                <div class="w-1 h-6 bg-pink-400 rounded-full"></div>
+                                <h3 class="text-lg font-bold text-gray-800">Top Ballad tuần này</h3>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between group">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xl font-bold text-pink-500 w-4">1</span>
+                                        <img src="https://images.unsplash.com/photo-1516280440614-6697288d5d38?w=100&q=80"
+                                            class="w-12 h-12 rounded-lg object-cover">
+                                        <div>
+                                            <p
+                                                class="font-bold text-gray-800 text-sm group-hover:text-pink-600 transition">
+                                                Em Đừng Khóc</p>
+                                            <p class="text-xs text-gray-500">Chillies</p>
+                                        </div>
+                                    </div>
+                                    <i data-lucide="plus-circle"
+                                        class="w-5 h-5 text-gray-400 cursor-pointer hover:text-pink-500"></i>
+                                </div>
+                                <div class="flex items-center justify-between group">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xl font-bold text-gray-400 w-4">2</span>
+                                        <img src="https://images.unsplash.com/photo-1459749411177-287ce14650db?w=100&q=80"
+                                            class="w-12 h-12 rounded-lg object-cover">
+                                        <div>
+                                            <p
+                                                class="font-bold text-gray-800 text-sm group-hover:text-pink-600 transition">
+                                                Vùng Ký Ức</p>
+                                            <p class="text-xs text-gray-500">Chillies</p>
+                                        </div>
+                                    </div>
+                                    <i data-lucide="plus-circle"
+                                        class="w-5 h-5 text-gray-400 cursor-pointer hover:text-pink-500"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel rounded-3xl p-5">
+                            <div class="flex items-center gap-2 mb-4">
+                                <div class="w-1 h-6 bg-green-500 rounded-full"></div>
+                                <h3 class="text-lg font-bold text-gray-800">Top Rap/Hip-hop</h3>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between group">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xl font-bold text-green-500 w-4">1</span>
+                                        <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=100&q=80"
+                                            class="w-12 h-12 rounded-lg object-cover">
+                                        <div>
+                                            <p
+                                                class="font-bold text-gray-800 text-sm group-hover:text-green-600 transition">
+                                                Siêu Sao</p>
+                                            <p class="text-xs text-gray-500">Low G</p>
+                                        </div>
+                                    </div>
+                                    <i data-lucide="plus-circle"
+                                        class="w-5 h-5 text-gray-400 cursor-pointer hover:text-green-500"></i>
+                                </div>
+                                <div class="flex items-center justify-between group">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xl font-bold text-gray-400 w-4">2</span>
+                                        <img src="https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&q=80"
+                                            class="w-12 h-12 rounded-lg object-cover">
+                                        <div>
+                                            <p
+                                                class="font-bold text-gray-800 text-sm group-hover:text-green-600 transition">
+                                                Love Game</p>
+                                            <p class="text-xs text-gray-500">Low G, TLinh</p>
+                                        </div>
+                                    </div>
+                                    <i data-lucide="plus-circle"
+                                        class="w-5 h-5 text-gray-400 cursor-pointer hover:text-green-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div id="tab-search" class="hidden space-y-6 transition-opacity duration-300">
+
+                    <div class="sticky top-0 z-30 pt-2 pb-2">
+                        <div class="relative mb-4">
+                            <i data-lucide="search" class="absolute left-4 top-3.5 w-5 h-5 text-gray-400"></i>
+                            <input type="text" placeholder="Tìm bài hát, nghệ sĩ, album..."
+                                class="w-full glass-input py-3 pl-12 pr-10 rounded-2xl text-gray-700 placeholder-gray-500 shadow-sm transition">
+                            <i data-lucide="x"
+                                class="absolute right-4 top-3.5 w-5 h-5 text-gray-400 cursor-pointer hover:text-gray-600"></i>
+                        </div>
+                        <div class="flex gap-2 overflow-x-auto hide-scroll">
+                            <button
+                                class="px-4 py-1.5 bg-purple-500 text-white rounded-full text-sm font-medium shadow-md shadow-purple-200">Tất
+                                cả</button>
+                            <button
+                                class="px-4 py-1.5 glass-card text-gray-600 rounded-full text-sm font-medium whitespace-nowrap hover:bg-white">Bài
+                                hát</button>
+                            <button
+                                class="px-4 py-1.5 glass-card text-gray-600 rounded-full text-sm font-medium whitespace-nowrap hover:bg-white">Nghệ
+                                sĩ</button>
+                            <button
+                                class="px-4 py-1.5 glass-card text-gray-600 rounded-full text-sm font-medium whitespace-nowrap hover:bg-white">Album</button>
+                        </div>
+                    </div>
+
+                    <section>
+                        <h2 class="text-lg font-bold text-gray-800 mb-3">Khám phá thể loại</h2>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div
+                                class="h-24 rounded-2xl bg-gradient-to-br from-orange-300 to-amber-400 p-3 relative overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+                                <span class="font-bold text-white text-lg">R&B</span>
+                                <i data-lucide="disc-3"
+                                    class="absolute -bottom-2 -right-2 w-16 h-16 text-white/30 transform rotate-12"></i>
+                            </div>
+                            <div
+                                class="h-24 rounded-2xl bg-gradient-to-br from-slate-600 to-slate-800 p-3 relative overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+                                <span class="font-bold text-white text-lg">Drill</span>
+                                <i data-lucide="headphones"
+                                    class="absolute -bottom-2 -right-2 w-16 h-16 text-white/20 transform -rotate-12"></i>
+                            </div>
+                            <div
+                                class="h-24 rounded-2xl bg-gradient-to-br from-indigo-400 to-blue-500 p-3 relative overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+                                <span class="font-bold text-white text-lg">Indie</span>
+                                <i data-lucide="music-2"
+                                    class="absolute -bottom-2 -right-2 w-16 h-16 text-white/30"></i>
+                            </div>
+                            <div
+                                class="h-24 rounded-2xl bg-gradient-to-br from-yellow-500 to-orange-600 p-3 relative overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+                                <span class="font-bold text-white text-lg">Jazz</span>
+                                <i data-lucide="coffee"
+                                    class="absolute -bottom-2 -right-2 w-16 h-16 text-white/30 transform rotate-6"></i>
+                            </div>
+                            <div
+                                class="h-24 rounded-2xl bg-gradient-to-br from-blue-400 to-cyan-500 p-3 relative overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+                                <span class="font-bold text-white text-lg">Ballad</span>
+                                <i data-lucide="cloud-rain"
+                                    class="absolute -bottom-2 -right-2 w-16 h-16 text-white/30"></i>
+                            </div>
+                            <div
+                                class="h-24 rounded-2xl bg-gradient-to-br from-pink-400 to-rose-500 p-3 relative overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+                                <span class="font-bold text-white text-lg">Pop</span>
+                                <i data-lucide="heart"
+                                    class="absolute -bottom-2 -right-2 w-16 h-16 text-white/30 transform scale-110"></i>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="space-y-6 pb-6">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-800 mb-3">Bài hát gợi ý</h2>
+                            <div class="space-y-3">
+                                <div
+                                    class="flex items-center justify-between group hover:bg-white/40 p-2 rounded-xl transition">
+                                    <div class="flex items-center gap-3">
+                                        <img src="https://images.unsplash.com/photo-1621360841013-c768371e93cf?w=100&q=80"
+                                            class="w-12 h-12 rounded-lg object-cover">
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-800">Tình yêu ngủ quên</p>
+                                            <p class="text-xs text-gray-500">Cristn1</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <i data-lucide="plus-circle"
+                                            class="w-5 h-5 text-gray-400 hover:text-purple-600 cursor-pointer"></i>
+                                        <i data-lucide="play-circle"
+                                            class="w-5 h-5 text-gray-400 hover:text-purple-600 cursor-pointer"></i>
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex items-center justify-between group hover:bg-white/40 p-2 rounded-xl transition">
+                                    <div class="flex items-center gap-3">
+                                        <img src="https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=100&q=80"
+                                            class="w-12 h-12 rounded-lg object-cover">
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-800">Chúng ta của hiện tại</p>
+                                            <p class="text-xs text-gray-500">Sơn Tùng M-TP</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <i data-lucide="plus-circle"
+                                            class="w-5 h-5 text-gray-400 hover:text-purple-600 cursor-pointer"></i>
+                                        <i data-lucide="play-circle"
+                                            class="w-5 h-5 text-gray-400 hover:text-purple-600 cursor-pointer"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-800 mb-3">Nghệ sĩ gợi ý</h2>
+                            <div class="flex space-x-4 overflow-x-auto hide-scroll">
+                                <div class="flex flex-col items-center space-y-2 w-20 flex-shrink-0">
+                                    <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&q=80"
+                                        class="w-16 h-16 rounded-full object-cover shadow-sm">
+                                    <span class="text-xs font-semibold text-gray-700">Kuyo</span>
+                                </div>
+                                <div class="flex flex-col items-center space-y-2 w-20 flex-shrink-0">
+                                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&q=80"
+                                        class="w-16 h-16 rounded-full object-cover shadow-sm">
+                                    <span class="text-xs font-semibold text-gray-700">JustaTee</span>
+                                </div>
+                                <div class="flex flex-col items-center space-y-2 w-20 flex-shrink-0">
+                                    <img src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=100&q=80"
+                                        class="w-16 h-16 rounded-full object-cover shadow-sm">
+                                    <span class="text-xs font-semibold text-gray-700">Ngân Lâm</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
             </div>
+
+            <div class="absolute bottom-0 w-full glass-nav px-6 py-4 pb-8 flex justify-between items-center z-20">
+                <button onclick="switchTab('home')" id="btn-home"
+                    class="flex flex-col items-center space-y-1 text-purple-600 transition transform hover:scale-110">
+                    <i data-lucide="home" class="w-6 h-6 fill-current"></i>
+                    <span class="text-[10px] font-bold">Trang chủ</span>
+                </button>
+                <button onclick="switchTab('search')" id="btn-search"
+                    class="flex flex-col items-center space-y-1 text-gray-400 hover:text-gray-600 transition transform hover:scale-110">
+                    <i data-lucide="search" class="w-6 h-6"></i>
+                    <span class="text-[10px] font-medium">Tìm kiếm</span>
+                </button>
+                <button
+                    class="flex flex-col items-center space-y-1 text-gray-400 hover:text-gray-600 transition transform hover:scale-110">
+                    <i data-lucide="library" class="w-6 h-6"></i>
+                    <span class="text-[10px] font-medium">Thư viện</span>
+                </button>
+                <button
+                    class="flex flex-col items-center space-y-1 text-gray-400 hover:text-gray-600 transition transform hover:scale-110">
+                    <i data-lucide="user" class="w-6 h-6"></i>
+                    <span class="text-[10px] font-medium">Cá nhân</span>
+                </button>
+            </div>
+
         </div>
     </div>
 
     <script>
-        // Elements
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('overlay');
-        const crudModal = document.getElementById('crudModal');
-        const deleteModal = document.getElementById('deleteModal');
-        const modalTitle = document.getElementById('modalTitle');
+        // Init Icons
+        lucide.createIcons();
 
-        // Functions
-        function toggleSidebar() {
-            const isClosed = sidebar.classList.contains('-translate-x-full');
-            if (isClosed) {
-                sidebar.classList.remove('-translate-x-full');
-                overlay.classList.remove('hidden');
-                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
-            } else {
-                sidebar.classList.add('-translate-x-full');
-                // Nếu không có modal nào mở thì mới ẩn overlay
-                if (crudModal.classList.contains('hidden') && deleteModal.classList.contains('hidden')) {
-                    overlay.classList.add('opacity-0');
-                    setTimeout(() => overlay.classList.add('hidden'), 300);
-                }
+        // Simple Tab Switching Logic
+        function switchTab(tab) {
+            const homeTab = document.getElementById('tab-home');
+            const searchTab = document.getElementById('tab-search');
+            const homeBtn = document.getElementById('btn-home');
+            const searchBtn = document.getElementById('btn-search');
+            const headerText = document.getElementById('header-text');
+
+            if (tab === 'home') {
+                homeTab.classList.remove('hidden');
+                searchTab.classList.add('hidden');
+
+                // Update Style Button
+                homeBtn.classList.add('text-purple-600');
+                homeBtn.classList.remove('text-gray-400');
+                homeBtn.querySelector('i').classList.add('fill-current');
+                homeBtn.querySelector('span').classList.add('font-bold');
+
+                searchBtn.classList.remove('text-purple-600');
+                searchBtn.classList.add('text-gray-400');
+                searchBtn.querySelector('span').classList.remove('font-bold');
+
+                // Header Animation
+                headerText.innerHTML = `
+                    <p class="text-gray-500 text-xs font-medium uppercase tracking-wider">Xin chào,</p>
+                    <h1 class="text-2xl font-bold text-gray-800">Minh Nhật</h1>
+                `;
+            } else if (tab === 'search') {
+                homeTab.classList.add('hidden');
+                searchTab.classList.remove('hidden');
+
+                // Update Style Button
+                searchBtn.classList.add('text-purple-600');
+                searchBtn.classList.remove('text-gray-400');
+                searchBtn.querySelector('span').classList.add('font-bold');
+
+                homeBtn.classList.remove('text-purple-600');
+                homeBtn.classList.add('text-gray-400');
+                homeBtn.querySelector('i').classList.remove('fill-current');
+                homeBtn.querySelector('span').classList.remove('font-bold');
+
+                // Change Header
+                headerText.innerHTML = `
+                    <h1 class="text-2xl font-bold text-gray-800 mt-3">Tìm kiếm</h1>
+                `;
             }
-        }
-
-        function openModal(type) {
-            // Setup title
-            modalTitle.innerText = type === 'create' ? 'Add New User' : 'Edit User';
-
-            // Show modal
-            crudModal.classList.remove('hidden');
-            overlay.classList.remove('hidden');
-            setTimeout(() => {
-                overlay.classList.remove('opacity-0');
-                crudModal.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
-                crudModal.querySelector('.modal-content').classList.add('scale-100', 'opacity-100');
-            }, 10);
-        }
-
-        function openDeleteModal() {
-            deleteModal.classList.remove('hidden');
-            overlay.classList.remove('hidden');
-            setTimeout(() => {
-                overlay.classList.remove('opacity-0');
-                deleteModal.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
-                deleteModal.querySelector('.modal-content').classList.add('scale-100', 'opacity-100');
-            }, 10);
-        }
-
-        function closeAll() {
-            // Close Sidebar
-            sidebar.classList.add('-translate-x-full');
-
-            // Close Modals Animation
-            const openModals = document.querySelectorAll('.modal-content.scale-100');
-            openModals.forEach(modal => {
-                modal.classList.remove('scale-100', 'opacity-100');
-                modal.classList.add('scale-95', 'opacity-0');
-            });
-
-            // Hide Overlay & Modals after animation
-            overlay.classList.add('opacity-0');
-            setTimeout(() => {
-                overlay.classList.add('hidden');
-                crudModal.classList.add('hidden');
-                deleteModal.classList.add('hidden');
-            }, 300);
         }
     </script>
 </body>

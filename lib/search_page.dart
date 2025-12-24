@@ -12,6 +12,7 @@ import 'now_playing_page.dart';
 import 'pages/artist_page.dart';
 import 'pages/album_page.dart';
 import 'pages/playlist_page.dart';
+import 'pages/podcast_page.dart';
 
 class SearchPage extends StatefulWidget {
   final Function(int)? onTabChanged;
@@ -37,12 +38,14 @@ class _SearchPageState extends State<SearchPage> {
   List<Artist> _artistResults = [];
   List<Album> _albumResults = [];
   List<Playlist> _playlistResults = [];
+  List<Podcast> _podcastResults = [];
 
   // Random suggestions khi không có kết quả
   List<Song> _randomSongs = [];
   List<Artist> _randomArtists = [];
   List<Album> _randomAlbums = [];
   List<Playlist> _randomPlaylists = [];
+  List<Podcast> _randomPodcasts = [];
   List<Map<String, dynamic>> _browseGenres = []; // Random genres for browsing
   bool _isLoadingSuggestions = false;
   bool _isLoadingGenres = false;
@@ -54,8 +57,10 @@ class _SearchPageState extends State<SearchPage> {
     'Nghệ sĩ',
     'Album',
     'Playlist',
+    'Podcast',
   ];
 
+  @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
@@ -83,6 +88,7 @@ class _SearchPageState extends State<SearchPage> {
         _artistResults = [];
         _albumResults = [];
         _playlistResults = [];
+        _podcastResults = [];
       });
       return;
     }
@@ -114,6 +120,9 @@ class _SearchPageState extends State<SearchPage> {
               .toList();
           _playlistResults = (results['playlists'] ?? [])
               .map<Playlist>((json) => Playlist.fromJson(json))
+              .toList();
+          _podcastResults = (results['podcasts'] ?? [])
+              .map<Podcast>((json) => Podcast.fromJson(json))
               .toList();
           _hasSearched = true;
           _isSearching = false;
@@ -148,6 +157,7 @@ class _SearchPageState extends State<SearchPage> {
         _supabaseService.getArtists(), // Get all then take 3
         _supabaseService.getRandomAlbums(3),
         _supabaseService.getPublicPlaylists(), // Get all then take 3
+        _supabaseService.getPodcasts(limit: 10), // Get podcasts for suggestions
       ]);
 
       if (mounted) {
@@ -156,6 +166,9 @@ class _SearchPageState extends State<SearchPage> {
 
         final playlists = (results[3] as List).toList();
         playlists.shuffle();
+
+        final podcasts = (results[4] as List).toList();
+        podcasts.shuffle();
 
         setState(() {
           _randomSongs = (results[0] as List)
@@ -173,6 +186,10 @@ class _SearchPageState extends State<SearchPage> {
           _randomPlaylists = playlists
               .take(3)
               .map<Playlist>((json) => Playlist.fromJson(json))
+              .toList();
+          _randomPodcasts = podcasts
+              .take(3)
+              .map<Podcast>((json) => Podcast.fromJson(json))
               .toList();
           _isLoadingSuggestions = false;
         });
@@ -216,6 +233,7 @@ class _SearchPageState extends State<SearchPage> {
       _artistResults = [];
       _albumResults = [];
       _playlistResults = [];
+      _podcastResults = [];
     });
   }
 
@@ -232,7 +250,8 @@ class _SearchPageState extends State<SearchPage> {
     return _songResults.isNotEmpty ||
         _artistResults.isNotEmpty ||
         _albumResults.isNotEmpty ||
-        _playlistResults.isNotEmpty;
+        _playlistResults.isNotEmpty ||
+        _podcastResults.isNotEmpty;
   }
 
   @override
@@ -372,6 +391,9 @@ class _SearchPageState extends State<SearchPage> {
           // Playlists
           if (_shouldShowCategory(4) && _playlistResults.isNotEmpty)
             _buildPlaylistsSection(),
+          // Podcasts
+          if (_shouldShowCategory(5) && _podcastResults.isNotEmpty)
+            _buildPodcastsSection(),
           const SizedBox(height: 100),
         ],
       ),
@@ -508,6 +530,22 @@ class _SearchPageState extends State<SearchPage> {
               ..._randomPlaylists.map(
                 (playlist) => _buildPlaylistItem(playlist),
               ),
+            ],
+
+            // Random Podcasts
+            if (_randomPodcasts.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Podcast gợi ý',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ..._randomPodcasts.map((podcast) => _buildPodcastItem(podcast)),
             ],
           ],
 
@@ -750,6 +788,68 @@ class _SearchPageState extends State<SearchPage> {
           context,
           MaterialPageRoute(
             builder: (context) => PlaylistPage(playlistId: playlist.id),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPodcastsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Text(
+            'Podcast',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        ..._podcastResults.map((podcast) => _buildPodcastItem(podcast)),
+      ],
+    );
+  }
+
+  Widget _buildPodcastItem(Podcast podcast) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: podcast.imageUrl != null
+            ? Image.network(
+                podcast.imageUrl!,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    _buildDefaultCover(Icons.podcasts),
+              )
+            : _buildDefaultCover(Icons.podcasts),
+      ),
+      title: Text(
+        podcast.title,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w500,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${podcast.hostName} • ${podcast.episodeCount} tập',
+        style: const TextStyle(color: AppColors.textSecondary),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PodcastPage(podcastId: podcast.id),
           ),
         );
       },

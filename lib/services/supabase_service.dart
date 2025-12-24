@@ -138,13 +138,13 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Lấy bảng xếp hạng nghệ sĩ theo tuần
+  /// Lấy bảng xếp hạng nghệ sĩ theo tuần (từ listening_history 7 ngày gần đây)
   Future<List<Map<String, dynamic>>> getWeeklyArtistRanking() async {
-    final response = await client
-        .from('weekly_artist_rankings')
-        .select()
-        .order('rank')
-        .limit(10);
+    // Query trực tiếp thay vì dùng view để tránh cache
+    final response = await client.rpc(
+      'get_weekly_artist_ranking',
+      params: {'limit_count': 10},
+    );
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -158,6 +158,28 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  /// Lấy bài hát gợi ý dựa trên thể loại đã nghe gần nhất
+  Future<List<Map<String, dynamic>>> getRecommendedSongs(
+    String userId, {
+    int genreLimit = 5,
+    int songsPerGenre = 2,
+  }) async {
+    try {
+      final response = await client.rpc(
+        'get_recommended_songs',
+        params: {
+          'user_id': userId,
+          'genre_limit': genreLimit,
+          'songs_per_genre': songsPerGenre,
+        },
+      );
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting recommended songs: $e');
+      return [];
+    }
+  }
+
   // ==================== ARTISTS ====================
 
   /// Lấy tất cả nghệ sĩ
@@ -166,14 +188,40 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Lấy nghệ sĩ theo ID
-  Future<Map<String, dynamic>?> getArtistById(String id) async {
+  /// Tìm kiếm nghệ sĩ theo tên
+  Future<List<Map<String, dynamic>>> searchArtists(
+    String name, {
+    int limit = 10,
+  }) async {
     final response = await client
         .from('artists')
         .select()
-        .eq('id', id)
-        .single();
-    return response;
+        .ilike('name', '%$name%')
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Lấy nghệ sĩ theo ID (với monthly_listeners tính từ listening_history)
+  Future<Map<String, dynamic>?> getArtistById(String id) async {
+    try {
+      // Sử dụng RPC function để tính monthly_listeners từ listening_history
+      final response = await client.rpc(
+        'get_artist_with_stats',
+        params: {'artist_id': id},
+      );
+      if (response is List && response.isNotEmpty) {
+        return response[0] as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      // Fallback nếu RPC function chưa tồn tại
+      final response = await client
+          .from('artists')
+          .select()
+          .eq('id', id)
+          .single();
+      return response;
+    }
   }
 
   /// Lấy top bài hát của nghệ sĩ
@@ -670,13 +718,19 @@ class SupabaseService {
 
   // ==================== SEARCH ====================
 
-  /// Tìm kiếm tất cả (songs, artists, albums, playlists)
+  /// Tìm kiếm tất cả (songs, artists, albums, playlists, podcasts)
   /// Tìm kiếm theo title, artist name, album name, và cả genre name
   Future<Map<String, List<Map<String, dynamic>>>> searchAll(
     String query,
   ) async {
     if (query.isEmpty) {
-      return {'songs': [], 'artists': [], 'albums': [], 'playlists': []};
+      return {
+        'songs': [],
+        'artists': [],
+        'albums': [],
+        'playlists': [],
+        'podcasts': [],
+      };
     }
 
     try {
@@ -701,6 +755,12 @@ class SupabaseService {
             .select()
             .eq('is_public', true)
             .ilike('name', '%$query%')
+            .limit(20),
+        // Search podcasts by title or host_name
+        client
+            .from('view_podcast_library')
+            .select()
+            .or('title.ilike.%$query%,host_name.ilike.%$query%')
             .limit(20),
       ]);
 
@@ -755,10 +815,17 @@ class SupabaseService {
         'artists': List<Map<String, dynamic>>.from(results[1]),
         'albums': List<Map<String, dynamic>>.from(results[2]),
         'playlists': List<Map<String, dynamic>>.from(results[3]),
+        'podcasts': List<Map<String, dynamic>>.from(results[4]),
       };
     } catch (e) {
       print('Search error: $e');
-      return {'songs': [], 'artists': [], 'albums': [], 'playlists': []};
+      return {
+        'songs': [],
+        'artists': [],
+        'albums': [],
+        'playlists': [],
+        'podcasts': [],
+      };
     }
   }
 
@@ -896,18 +963,27 @@ class SupabaseService {
     int durationPlayed = 0,
     bool completed = false,
   }) async {
-    await client.from('podcast_listening_history').insert({
-      'user_id': userId,
-      'episode_id': episodeId,
-      'duration_played': durationPlayed,
-      'completed': completed,
-    });
+    try {
+      await client.from('podcast_listening_history').insert({
+        'user_id': userId,
+        'episode_id': episodeId,
+        'duration_played': durationPlayed,
+        'completed': completed,
+      });
+    } catch (e) {
+      print('Error recording podcast listening history: $e');
+    }
 
-    // Increment play count
-    await client.rpc(
-      'increment_podcast_play_count',
-      params: {'episode_id': episodeId},
-    );
+    // Increment play count (ignore if function doesn't exist)
+    try {
+      await client.rpc(
+        'increment_podcast_play_count',
+        params: {'episode_id': episodeId},
+      );
+    } catch (e) {
+      // Function may not exist yet, ignore
+      print('increment_podcast_play_count not available: $e');
+    }
   }
 
   /// Lấy lịch sử nghe podcast

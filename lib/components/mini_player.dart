@@ -87,21 +87,19 @@ class MiniPlayer extends StatelessWidget {
                         children: [
                           Text(
                             song.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
                             song.artist,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[400]),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -304,23 +302,23 @@ class _MiniPlayerDynamicState extends State<MiniPlayerDynamic>
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              decoration: TextDecoration.none,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.none,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
                             artist,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                              decoration: TextDecoration.none,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.grey[400],
+                                  decoration: TextDecoration.none,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

@@ -331,7 +331,7 @@ LEFT JOIN listening_history lh ON s.id = lh.song_id
   AND lh.listened_at > NOW() - INTERVAL '7 days'
 GROUP BY s.id, g.id;
 
--- Weekly artist rankings
+-- Weekly artist rankings (based on listening_history in last 7 days)
 CREATE VIEW weekly_artist_rankings AS
 SELECT 
   a.id,
@@ -341,13 +341,17 @@ SELECT
   a.followers,
   a.monthly_listeners,
   a.is_verified,
-  COALESCE(COUNT(lh.id), 0) as weekly_plays,
+  a.created_at,
+  COUNT(lh.id) as weekly_plays,
+  COUNT(DISTINCT lh.user_id) as weekly_listeners,
+  COUNT(DISTINCT lh.song_id) as songs_played,
   RANK() OVER (ORDER BY COUNT(lh.id) DESC) as rank
 FROM artists a
-LEFT JOIN song_artists sa ON a.id = sa.artist_id
-LEFT JOIN listening_history lh ON sa.song_id = lh.song_id 
-  AND lh.listened_at > NOW() - INTERVAL '7 days'
-GROUP BY a.id;
+INNER JOIN song_artists sa ON a.id = sa.artist_id
+INNER JOIN listening_history lh ON sa.song_id = lh.song_id
+WHERE lh.listened_at > NOW() - INTERVAL '7 days'
+GROUP BY a.id
+ORDER BY rank;
 
 -- New releases (last 7 days)
 CREATE VIEW new_releases AS

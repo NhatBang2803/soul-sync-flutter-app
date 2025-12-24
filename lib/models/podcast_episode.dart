@@ -81,6 +81,7 @@ class PodcastEpisode {
       'audioUrl': audioUrl,
       'duration': duration,
       'isPodcast': true, // Flag to identify podcast in player
+      'podcastId': podcastId, // For navigation to podcast page
     };
   }
 

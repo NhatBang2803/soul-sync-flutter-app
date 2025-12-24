@@ -234,7 +234,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Âm nhạc kết nối tâm hồn',
+                    'Âm nhạc kết nối cái lồn',
                     style: TextStyle(
                       color: Colors.grey[400],
                       fontSize: 16,
