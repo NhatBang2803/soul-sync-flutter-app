@@ -90,7 +90,7 @@ class _HomePageState extends State<HomePage> {
         artistsData = await _supabaseService.getWeeklyArtistRanking();
         print('Loaded ${artistsData.length} weekly artists');
         // Print first 3 artists to debug
-        for (var i = 0; i < artistsData.length && i < 3; i++) {
+        for (var i = 0; i < artistsData.length && i < 7; i++) {
           print(
             'Artist $i: ${artistsData[i]['name']} - weekly_plays: ${artistsData[i]['weekly_plays']}',
           );
@@ -298,32 +298,38 @@ class _HomePageState extends State<HomePage> {
             builder: (context, snapshot) {
               final user = _authService.currentUser;
               final avatarUrl = user?.avatarUrl;
-              return Container(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: AppColors.primaryGradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              return GestureDetector(
+                onTap: () {
+                  // Navigate to profile tab (index 3)
+                  widget.onTabChanged?.call(3);
+                },
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: AppColors.primaryGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
-                ),
-                padding: const EdgeInsets.all(2),
-                child: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppColors.background,
+                  padding: const EdgeInsets.all(2),
                   child: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.surface,
-                    backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
-                        ? NetworkImage(avatarUrl)
-                        : null,
-                    child: avatarUrl == null || avatarUrl.isEmpty
-                        ? const Icon(
-                            Icons.person,
-                            size: 18,
-                            color: AppColors.textPrimary,
-                          )
-                        : null,
+                    radius: 20,
+                    backgroundColor: AppColors.background,
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.surface,
+                      backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                          ? NetworkImage(avatarUrl)
+                          : null,
+                      child: avatarUrl == null || avatarUrl.isEmpty
+                          ? const Icon(
+                              Icons.person,
+                              size: 18,
+                              color: AppColors.textPrimary,
+                            )
+                          : null,
+                    ),
                   ),
                 ),
               );
@@ -388,6 +394,14 @@ class _HomePageState extends State<HomePage> {
       selectedIndex: _selectedFilterIndex,
       onSelected: (index) {
         setState(() => _selectedFilterIndex = index);
+        // Scroll to top when switching tabs
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       },
     );
   }

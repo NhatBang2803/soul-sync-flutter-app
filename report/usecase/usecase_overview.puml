@@ -1,0 +1,186 @@
+@startuml SoulSync_UseCase_Overview
+
+title Soul Sync - Use Case Diagram (Tổng quan)
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+' ==================== ACTORS ====================
+actor "Người dùng\n(User)" as User
+actor "Khách\n(Guest)" as Guest
+actor "Admin" as Admin
+
+' ==================== PACKAGES ====================
+
+rectangle "Xác thực (Authentication)" {
+  usecase "Đăng ký tài khoản" as UC_Register
+  usecase "Đăng nhập" as UC_Login
+  usecase "Đăng nhập bằng Google" as UC_GoogleLogin
+  usecase "Đăng xuất" as UC_Logout
+}
+
+rectangle "Quản lý hồ sơ (Profile)" {
+  usecase "Xem hồ sơ cá nhân" as UC_ViewProfile
+  usecase "Cập nhật thông tin cá nhân" as UC_UpdateProfile
+  usecase "Thay đổi ảnh đại diện" as UC_ChangeAvatar
+  usecase "Xóa ảnh đại diện" as UC_RemoveAvatar
+}
+
+rectangle "Phát nhạc (Music Playback)" {
+  usecase "Phát bài hát" as UC_PlaySong
+  usecase "Tạm dừng/Tiếp tục" as UC_PauseResume
+  usecase "Chuyển bài tiếp theo" as UC_NextSong
+  usecase "Chuyển bài trước" as UC_PrevSong
+  usecase "Tua bài hát" as UC_SeekSong
+  usecase "Bật/Tắt phát ngẫu nhiên" as UC_Shuffle
+  usecase "Bật/Tắt lặp lại" as UC_Repeat
+  usecase "Đặt hẹn giờ ngủ" as UC_SleepTimer
+}
+
+rectangle "Hàng đợi phát (Queue)" {
+  usecase "Xem hàng đợi" as UC_ViewQueue
+  usecase "Thêm bài vào hàng đợi" as UC_AddToQueue
+  usecase "Xóa bài khỏi hàng đợi" as UC_RemoveFromQueue
+  usecase "Sắp xếp lại hàng đợi" as UC_ReorderQueue
+  usecase "Xóa toàn bộ hàng đợi" as UC_ClearQueue
+}
+
+rectangle "Thư viện (Library)" {
+  usecase "Xem bài hát đã thích" as UC_ViewLikedSongs
+  usecase "Thích/Bỏ thích bài hát" as UC_LikeSong
+  usecase "Xem album đã thích" as UC_ViewLikedAlbums
+  usecase "Thích/Bỏ thích album" as UC_LikeAlbum
+  usecase "Xem nghệ sĩ đang theo dõi" as UC_ViewFollowedArtists
+  usecase "Theo dõi/Bỏ theo dõi nghệ sĩ" as UC_FollowArtist
+}
+
+rectangle "Playlist" {
+  usecase "Xem danh sách playlist" as UC_ViewPlaylists
+  usecase "Tạo playlist mới" as UC_CreatePlaylist
+  usecase "Sửa thông tin playlist" as UC_EditPlaylist
+  usecase "Xóa playlist" as UC_DeletePlaylist
+  usecase "Thêm bài vào playlist" as UC_AddToPlaylist
+  usecase "Xóa bài khỏi playlist" as UC_RemoveFromPlaylist
+  usecase "Đặt playlist công khai/riêng tư" as UC_TogglePlaylistPrivacy
+}
+
+rectangle "Tìm kiếm (Search)" {
+  usecase "Tìm kiếm bài hát" as UC_SearchSong
+  usecase "Tìm kiếm nghệ sĩ" as UC_SearchArtist
+  usecase "Tìm kiếm album" as UC_SearchAlbum
+  usecase "Tìm kiếm playlist" as UC_SearchPlaylist
+  usecase "Tìm kiếm podcast" as UC_SearchPodcast
+}
+
+rectangle "Duyệt nội dung (Browse)" {
+  usecase "Xem trang chủ" as UC_ViewHome
+  usecase "Xem bảng xếp hạng tuần" as UC_ViewRankings
+  usecase "Xem bài hát mới phát hành" as UC_ViewNewReleases
+  usecase "Xem nghệ sĩ nổi bật" as UC_ViewTopArtists
+  usecase "Xem chi tiết nghệ sĩ" as UC_ViewArtistDetail
+  usecase "Xem chi tiết album" as UC_ViewAlbumDetail
+  usecase "Xem lịch sử nghe" as UC_ViewHistory
+}
+
+rectangle "Podcast" {
+  usecase "Xem danh sách podcast" as UC_ViewPodcasts
+  usecase "Phát tập podcast" as UC_PlayPodcast
+  usecase "Lưu podcast yêu thích" as UC_SavePodcast
+  usecase "Xem podcast đã lưu" as UC_ViewSavedPodcasts
+}
+
+rectangle "Quản trị (Admin)" {
+  usecase "Quản lý người dùng" as UC_ManageUsers
+  usecase "Quản lý bài hát" as UC_ManageSongs
+  usecase "Quản lý nghệ sĩ" as UC_ManageArtists
+  usecase "Quản lý album" as UC_ManageAlbums
+  usecase "Quản lý playlist" as UC_ManagePlaylists
+  usecase "Quản lý podcast" as UC_ManagePodcasts
+  usecase "Sao lưu dữ liệu" as UC_BackupData
+}
+
+' ==================== RELATIONSHIPS ====================
+
+' Guest
+Guest --> UC_Register
+Guest --> UC_Login
+Guest --> UC_GoogleLogin
+
+' User - Authentication
+User --> UC_Login
+User --> UC_GoogleLogin
+User --> UC_Logout
+
+' User - Profile
+User --> UC_ViewProfile
+User --> UC_UpdateProfile
+User --> UC_ChangeAvatar
+User --> UC_RemoveAvatar
+
+' User - Playback
+User --> UC_PlaySong
+User --> UC_PauseResume
+User --> UC_NextSong
+User --> UC_PrevSong
+User --> UC_SeekSong
+User --> UC_Shuffle
+User --> UC_Repeat
+User --> UC_SleepTimer
+
+' User - Queue
+User --> UC_ViewQueue
+User --> UC_AddToQueue
+User --> UC_RemoveFromQueue
+User --> UC_ReorderQueue
+User --> UC_ClearQueue
+
+' User - Library
+User --> UC_ViewLikedSongs
+User --> UC_LikeSong
+User --> UC_ViewLikedAlbums
+User --> UC_LikeAlbum
+User --> UC_ViewFollowedArtists
+User --> UC_FollowArtist
+
+' User - Playlist
+User --> UC_ViewPlaylists
+User --> UC_CreatePlaylist
+User --> UC_EditPlaylist
+User --> UC_DeletePlaylist
+User --> UC_AddToPlaylist
+User --> UC_RemoveFromPlaylist
+User --> UC_TogglePlaylistPrivacy
+
+' User - Search
+User --> UC_SearchSong
+User --> UC_SearchArtist
+User --> UC_SearchAlbum
+User --> UC_SearchPlaylist
+User --> UC_SearchPodcast
+
+' User - Browse
+User --> UC_ViewHome
+User --> UC_ViewRankings
+User --> UC_ViewNewReleases
+User --> UC_ViewTopArtists
+User --> UC_ViewArtistDetail
+User --> UC_ViewAlbumDetail
+User --> UC_ViewHistory
+
+' User - Podcast
+User --> UC_ViewPodcasts
+User --> UC_PlayPodcast
+User --> UC_SavePodcast
+User --> UC_ViewSavedPodcasts
+
+' Admin
+Admin --> UC_ManageUsers
+Admin --> UC_ManageSongs
+Admin --> UC_ManageArtists
+Admin --> UC_ManageAlbums
+Admin --> UC_ManagePlaylists
+Admin --> UC_ManagePodcasts
+Admin --> UC_BackupData
+
+@enduml

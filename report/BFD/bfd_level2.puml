@@ -1,0 +1,274 @@
+@startuml SoulSync_BFD_Level2
+
+title Soul Sync - Business Flow Diagram Level 2 (Chi tiết CRUD)
+
+' ==================== STYLING ====================
+skinparam rectangle {
+    BackgroundColor<<process>> LightBlue
+    BackgroundColor<<storage>> LightGray
+    BackgroundColor<<external>> LightGreen
+}
+
+' ==================== EXTERNAL ENTITIES ====================
+rectangle "Người dùng\n(User)" as User <<external>>
+rectangle "Admin" as Admin <<external>>
+rectangle "Cloudinary API" as Cloudinary <<external>>
+rectangle "Supabase Auth" as SupabaseAuth <<external>>
+rectangle "Google OAuth" as GoogleOAuth <<external>>
+
+' ==================== MAIN PROCESSES ====================
+
+package "1.0 Quản lý Xác thực" {
+    rectangle "1.1 Đăng ký\ntài khoản" as P1_1 <<process>>
+    rectangle "1.2 Đăng nhập\nlocal" as P1_2 <<process>>
+    rectangle "1.3 Đăng nhập\nGoogle OAuth" as P1_3 <<process>>
+    rectangle "1.4 Đăng xuất" as P1_4 <<process>>
+}
+
+package "2.0 Quản lý Hồ sơ" {
+    rectangle "2.1 Xem\nhồ sơ" as P2_1 <<process>>
+    rectangle "2.2 Cập nhật\nthông tin" as P2_2 <<process>>
+    rectangle "2.3 Upload\nảnh đại diện" as P2_3 <<process>>
+    rectangle "2.4 Xóa\nảnh đại diện" as P2_4 <<process>>
+}
+
+package "3.0 Quản lý Bài hát" {
+    rectangle "3.1 Xem\ndanh sách" as P3_1 <<process>>
+    rectangle "3.2 Thêm\nbài hát" as P3_2 <<process>>
+    rectangle "3.3 Sửa\nbài hát" as P3_3 <<process>>
+    rectangle "3.4 Xóa\nbài hát" as P3_4 <<process>>
+    rectangle "3.5 Phát\nbài hát" as P3_5 <<process>>
+    rectangle "3.6 Tìm kiếm\nbài hát" as P3_6 <<process>>
+}
+
+package "4.0 Quản lý Nghệ sĩ" {
+    rectangle "4.1 Xem\ndanh sách" as P4_1 <<process>>
+    rectangle "4.2 Thêm\nnghệ sĩ" as P4_2 <<process>>
+    rectangle "4.3 Sửa\nnghệ sĩ" as P4_3 <<process>>
+    rectangle "4.4 Xóa\nnghệ sĩ" as P4_4 <<process>>
+    rectangle "4.5 Theo dõi\nnghệ sĩ" as P4_5 <<process>>
+    rectangle "4.6 Bỏ theo dõi\nnghệ sĩ" as P4_6 <<process>>
+}
+
+package "5.0 Quản lý Album" {
+    rectangle "5.1 Xem\ndanh sách" as P5_1 <<process>>
+    rectangle "5.2 Thêm\nalbum" as P5_2 <<process>>
+    rectangle "5.3 Sửa\nalbum" as P5_3 <<process>>
+    rectangle "5.4 Xóa\nalbum" as P5_4 <<process>>
+    rectangle "5.5 Thích\nalbum" as P5_5 <<process>>
+    rectangle "5.6 Bỏ thích\nalbum" as P5_6 <<process>>
+}
+
+package "6.0 Quản lý Playlist" {
+    rectangle "6.1 Xem\ndanh sách" as P6_1 <<process>>
+    rectangle "6.2 Tạo\nplaylist" as P6_2 <<process>>
+    rectangle "6.3 Sửa\nplaylist" as P6_3 <<process>>
+    rectangle "6.4 Xóa\nplaylist" as P6_4 <<process>>
+    rectangle "6.5 Thêm bài\nvào playlist" as P6_5 <<process>>
+    rectangle "6.6 Xóa bài\nkhỏi playlist" as P6_6 <<process>>
+}
+
+package "7.0 Quản lý Podcast" {
+    rectangle "7.1 Xem\ndanh sách" as P7_1 <<process>>
+    rectangle "7.2 Thêm\npodcast" as P7_2 <<process>>
+    rectangle "7.3 Sửa\npodcast" as P7_3 <<process>>
+    rectangle "7.4 Xóa\npodcast" as P7_4 <<process>>
+    rectangle "7.5 Lưu\npodcast" as P7_5 <<process>>
+    rectangle "7.6 Phát\ntập podcast" as P7_6 <<process>>
+}
+
+package "8.0 Quản lý Phát nhạc" {
+    rectangle "8.1 Điều khiển\nphát/dừng" as P8_1 <<process>>
+    rectangle "8.2 Chuyển\nbài tiếp/lùi" as P8_2 <<process>>
+    rectangle "8.3 Quản lý\nhàng đợi" as P8_3 <<process>>
+    rectangle "8.4 Bật/Tắt\nshuffle" as P8_4 <<process>>
+    rectangle "8.5 Bật/Tắt\nrepeat" as P8_5 <<process>>
+    rectangle "8.6 Hẹn giờ\nngủ" as P8_6 <<process>>
+}
+
+package "9.0 Quản lý Tương tác" {
+    rectangle "9.1 Thích\nbài hát" as P9_1 <<process>>
+    rectangle "9.2 Bỏ thích\nbài hát" as P9_2 <<process>>
+    rectangle "9.3 Ghi nhận\nlịch sử nghe" as P9_3 <<process>>
+    rectangle "9.4 Xem\nlịch sử nghe" as P9_4 <<process>>
+}
+
+package "10.0 Quản lý Admin" {
+    rectangle "10.1 Dashboard\ntổng quan" as P10_1 <<process>>
+    rectangle "10.2 CRUD\nngười dùng" as P10_2 <<process>>
+    rectangle "10.3 CRUD\nnội dung" as P10_3 <<process>>
+    rectangle "10.4 Sao lưu\ndữ liệu" as P10_4 <<process>>
+}
+
+' ==================== DATA STORES ====================
+database "D1: Users" as D1 <<storage>>
+database "D2: Songs" as D2 <<storage>>
+database "D3: Artists" as D3 <<storage>>
+database "D4: Albums" as D4 <<storage>>
+database "D5: Playlists" as D5 <<storage>>
+database "D6: Podcasts" as D6 <<storage>>
+database "D7: Listening History" as D7 <<storage>>
+database "D8: User Interactions" as D8 <<storage>>
+
+' ==================== DATA FLOWS ====================
+
+' User Authentication flows
+User --> P1_1 : Thông tin đăng ký
+P1_1 --> D1 : Lưu user mới
+P1_1 --> SupabaseAuth : Tạo auth user
+
+User --> P1_2 : Tên đăng nhập, mật khẩu
+P1_2 --> D1 : Xác thực
+
+User --> P1_3 : OAuth token
+P1_3 --> GoogleOAuth : Xác thực Google
+P1_3 --> D1 : Tạo/cập nhật user
+
+User --> P1_4 : Yêu cầu đăng xuất
+P1_4 --> SupabaseAuth : Xóa session
+
+' Profile flows
+User --> P2_1 : Yêu cầu xem
+D1 --> P2_1 : Thông tin user
+P2_1 --> User : Hiển thị hồ sơ
+
+User --> P2_2 : Thông tin mới
+P2_2 --> D1 : Cập nhật user
+
+User --> P2_3 : File ảnh
+P2_3 --> Cloudinary : Upload ảnh
+Cloudinary --> P2_3 : URL ảnh
+P2_3 --> D1 : Cập nhật avatar_url
+
+' Song flows
+User --> P3_1 : Yêu cầu xem
+D2 --> P3_1 : Danh sách bài hát
+P3_1 --> User : Hiển thị
+
+Admin --> P3_2 : Thông tin bài hát
+P3_2 --> Cloudinary : Upload audio
+P3_2 --> D2 : Lưu bài hát mới
+
+Admin --> P3_3 : Thông tin cập nhật
+P3_3 --> D2 : Cập nhật bài hát
+
+Admin --> P3_4 : ID bài hát
+P3_4 --> D2 : Xóa bài hát
+
+User --> P3_5 : Chọn bài hát
+D2 --> P3_5 : Audio URL
+P3_5 --> User : Phát nhạc
+P3_5 --> D7 : Ghi lịch sử
+
+User --> P3_6 : Từ khóa tìm kiếm
+D2 --> P3_6 : Kết quả
+P3_6 --> User : Hiển thị
+
+' Artist flows
+User --> P4_1 : Yêu cầu xem
+D3 --> P4_1 : Danh sách nghệ sĩ
+P4_1 --> User : Hiển thị
+
+Admin --> P4_2 : Thông tin nghệ sĩ
+P4_2 --> D3 : Lưu nghệ sĩ mới
+
+Admin --> P4_3 : Thông tin cập nhật
+P4_3 --> D3 : Cập nhật
+
+Admin --> P4_4 : ID nghệ sĩ
+P4_4 --> D3 : Xóa
+
+User --> P4_5 : ID nghệ sĩ
+P4_5 --> D8 : Lưu theo dõi
+
+User --> P4_6 : ID nghệ sĩ
+P4_6 --> D8 : Xóa theo dõi
+
+' Album flows
+Admin --> P5_2 : Thông tin album
+P5_2 --> D4 : Lưu album mới
+
+Admin --> P5_3 : Thông tin cập nhật
+P5_3 --> D4 : Cập nhật
+
+Admin --> P5_4 : ID album
+P5_4 --> D4 : Xóa
+
+User --> P5_5 : ID album
+P5_5 --> D8 : Lưu thích
+
+' Playlist flows
+User --> P6_2 : Thông tin playlist
+P6_2 --> D5 : Tạo playlist mới
+
+User --> P6_3 : Thông tin cập nhật
+P6_3 --> D5 : Cập nhật
+
+User --> P6_4 : ID playlist
+P6_4 --> D5 : Xóa
+
+User --> P6_5 : ID playlist, ID bài hát
+P6_5 --> D5 : Thêm bài
+
+User --> P6_6 : ID bài hát
+P6_6 --> D5 : Xóa bài
+
+' Podcast flows
+Admin --> P7_2 : Thông tin podcast
+P7_2 --> D6 : Lưu podcast mới
+
+Admin --> P7_3 : Thông tin cập nhật
+P7_3 --> D6 : Cập nhật
+
+Admin --> P7_4 : ID podcast
+P7_4 --> D6 : Xóa
+
+User --> P7_5 : ID podcast
+P7_5 --> D8 : Lưu podcast
+
+User --> P7_6 : ID tập
+D6 --> P7_6 : Audio URL
+P7_6 --> User : Phát podcast
+
+' Playback flows
+User --> P8_1 : Lệnh phát/dừng
+User --> P8_2 : Lệnh chuyển bài
+User --> P8_3 : Thao tác hàng đợi
+User --> P8_4 : Toggle shuffle
+User --> P8_5 : Toggle repeat
+User --> P8_6 : Thời gian hẹn
+
+' Interaction flows
+User --> P9_1 : ID bài hát
+P9_1 --> D8 : Lưu thích
+
+User --> P9_2 : ID bài hát
+P9_2 --> D8 : Xóa thích
+
+P9_3 --> D7 : Ghi lịch sử
+
+User --> P9_4 : Yêu cầu xem
+D7 --> P9_4 : Lịch sử nghe
+P9_4 --> User : Hiển thị
+
+' Admin flows
+Admin --> P10_1 : Yêu cầu xem
+P10_1 --> Admin : Thống kê tổng quan
+
+Admin --> P10_2 : CRUD users
+P10_2 --> D1 : Thao tác
+
+Admin --> P10_3 : CRUD content
+P10_3 --> D2 : Thao tác songs
+P10_3 --> D3 : Thao tác artists
+P10_3 --> D4 : Thao tác albums
+
+Admin --> P10_4 : Yêu cầu sao lưu
+P10_4 --> D1 : Export users
+P10_4 --> D2 : Export songs
+P10_4 --> D3 : Export artists
+P10_4 --> D4 : Export albums
+P10_4 --> D5 : Export playlists
+P10_4 --> D6 : Export podcasts
+
+@enduml

@@ -1,0 +1,274 @@
+@startuml SoulSync_Database_ERD
+
+title Soul Sync - Entity Relationship Diagram (Database Schema)
+
+' ==================== STYLING ====================
+skinparam linetype ortho
+skinparam class {
+    BackgroundColor<<main>> LightBlue
+    BackgroundColor<<junction>> LightYellow
+    BackgroundColor<<interaction>> LightGreen
+    BackgroundColor<<podcast>> LightCoral
+}
+
+' ==================== MAIN ENTITIES ====================
+
+entity "users" as users <<main>> {
+    * **id** : UUID <<PK>>
+    --
+    * email : VARCHAR(255) <<UNIQUE>>
+    username : VARCHAR(50) <<UNIQUE>>
+    display_name : VARCHAR(255)
+    avatar_url : TEXT
+    password_hash : TEXT
+    auth_method : VARCHAR(20)
+    created_at : TIMESTAMPTZ
+    updated_at : TIMESTAMPTZ
+}
+
+entity "artists" as artists <<main>> {
+    * **id** : UUID <<PK>>
+    --
+    * name : VARCHAR(255)
+    image_url : TEXT
+    followers : INTEGER
+    monthly_listeners : INTEGER
+    is_verified : BOOLEAN
+    bio : TEXT
+    created_at : TIMESTAMPTZ
+    updated_at : TIMESTAMPTZ
+}
+
+entity "genres" as genres <<main>> {
+    * **id** : UUID <<PK>>
+    --
+    * name : VARCHAR(100) <<UNIQUE>>
+    * display_name : VARCHAR(100)
+    color : VARCHAR(7)
+    created_at : TIMESTAMPTZ
+}
+
+entity "albums" as albums <<main>> {
+    * **id** : UUID <<PK>>
+    --
+    * name : VARCHAR(255)
+    cover_url : TEXT
+    release_year : INTEGER
+    song_count : INTEGER
+    listen_count : INTEGER
+    is_public : BOOLEAN
+    created_at : TIMESTAMPTZ
+    updated_at : TIMESTAMPTZ
+}
+
+entity "songs" as songs <<main>> {
+    * **id** : UUID <<PK>>
+    --
+    * title : VARCHAR(255)
+    * duration : INTEGER
+    audio_url : TEXT
+    cover_url : TEXT
+    play_count : INTEGER
+    created_at : TIMESTAMPTZ
+}
+
+entity "playlists" as playlists <<main>> {
+    * **id** : UUID <<PK>>
+    --
+    owner_id : UUID <<FK>>
+    * name : VARCHAR(255)
+    description : TEXT
+    cover_url : TEXT
+    is_public : BOOLEAN
+    song_count : INTEGER
+    listen_count : INTEGER
+    created_at : TIMESTAMPTZ
+    updated_at : TIMESTAMPTZ
+}
+
+' ==================== JUNCTION TABLES ====================
+
+entity "song_artists" as song_artists <<junction>> {
+    * **id** : UUID <<PK>>
+    --
+    * song_id : UUID <<FK>>
+    * artist_id : UUID <<FK>>
+    role : VARCHAR(50)
+    position : INTEGER
+    --
+    <<UNIQUE(song_id, artist_id)>>
+}
+
+entity "album_artists" as album_artists <<junction>> {
+    * **id** : UUID <<PK>>
+    --
+    * album_id : UUID <<FK>>
+    * artist_id : UUID <<FK>>
+    --
+    <<UNIQUE(album_id, artist_id)>>
+}
+
+entity "album_songs" as album_songs <<junction>> {
+    * **id** : UUID <<PK>>
+    --
+    * album_id : UUID <<FK>>
+    * song_id : UUID <<FK>>
+    track_number : INTEGER
+    --
+    <<UNIQUE(album_id, song_id)>>
+}
+
+entity "song_genres" as song_genres <<junction>> {
+    * **song_id** : UUID <<PK, FK>>
+    * **genre_id** : UUID <<PK, FK>>
+}
+
+entity "playlist_songs" as playlist_songs <<junction>> {
+    * **id** : UUID <<PK>>
+    --
+    * playlist_id : UUID <<FK>>
+    * song_id : UUID <<FK>>
+    position : INTEGER
+    added_at : TIMESTAMPTZ
+    --
+    <<UNIQUE(playlist_id, song_id)>>
+}
+
+' ==================== USER INTERACTION TABLES ====================
+
+entity "user_follows" as user_follows <<interaction>> {
+    * **id** : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * artist_id : UUID <<FK>>
+    followed_at : TIMESTAMPTZ
+    --
+    <<UNIQUE(user_id, artist_id)>>
+}
+
+entity "user_liked_songs" as user_liked_songs <<interaction>> {
+    * **id** : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * song_id : UUID <<FK>>
+    liked_at : TIMESTAMPTZ
+    --
+    <<UNIQUE(user_id, song_id)>>
+}
+
+entity "user_liked_albums" as user_liked_albums <<interaction>> {
+    * **id** : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * album_id : UUID <<FK>>
+    liked_at : TIMESTAMPTZ
+    --
+    <<UNIQUE(user_id, album_id)>>
+}
+
+entity "listening_history" as listening_history <<interaction>> {
+    * **id** : UUID <<PK>>
+    --
+    user_id : UUID <<FK>>
+    * song_id : UUID <<FK>>
+    listened_at : TIMESTAMPTZ
+    duration_played : INTEGER
+    completed : BOOLEAN
+}
+
+' ==================== PODCAST TABLES ====================
+
+entity "podcasts" as podcasts <<podcast>> {
+    * **id** : UUID <<PK>>
+    --
+    * title : VARCHAR(255)
+    * host_name : VARCHAR(255)
+    description : TEXT
+    image_url : TEXT
+    category : VARCHAR(100)
+    created_at : TIMESTAMPTZ
+    updated_at : TIMESTAMPTZ
+}
+
+entity "podcast_episodes" as podcast_episodes <<podcast>> {
+    * **id** : UUID <<PK>>
+    --
+    * podcast_id : UUID <<FK>>
+    * title : VARCHAR(255)
+    description : TEXT
+    * audio_url : TEXT
+    duration : INTEGER
+    play_count : INTEGER
+    published_at : TIMESTAMPTZ
+    created_at : TIMESTAMPTZ
+}
+
+entity "user_saved_podcasts" as user_saved_podcasts <<podcast>> {
+    * **id** : UUID <<PK>>
+    --
+    * user_id : UUID <<FK>>
+    * podcast_id : UUID <<FK>>
+    saved_at : TIMESTAMPTZ
+    --
+    <<UNIQUE(user_id, podcast_id)>>
+}
+
+entity "podcast_listening_history" as podcast_listening_history <<podcast>> {
+    * **id** : UUID <<PK>>
+    --
+    user_id : UUID <<FK>>
+    * episode_id : UUID <<FK>>
+    listened_at : TIMESTAMPTZ
+    duration_played : INTEGER
+    completed : BOOLEAN
+}
+
+' ==================== RELATIONSHIPS ====================
+
+' Playlist ownership
+users ||--o{ playlists : "owns"
+
+' Song-Artist many-to-many
+songs ||--o{ song_artists : "has"
+artists ||--o{ song_artists : "performs"
+
+' Album-Artist many-to-many
+albums ||--o{ album_artists : "has"
+artists ||--o{ album_artists : "creates"
+
+' Album-Song many-to-many
+albums ||--o{ album_songs : "contains"
+songs ||--o{ album_songs : "belongs to"
+
+' Song-Genre many-to-many
+songs ||--o{ song_genres : "has"
+genres ||--o{ song_genres : "categorizes"
+
+' Playlist-Song many-to-many
+playlists ||--o{ playlist_songs : "contains"
+songs ||--o{ playlist_songs : "added to"
+
+' User follows Artist
+users ||--o{ user_follows : "follows"
+artists ||--o{ user_follows : "followed by"
+
+' User likes Song
+users ||--o{ user_liked_songs : "likes"
+songs ||--o{ user_liked_songs : "liked by"
+
+' User likes Album
+users ||--o{ user_liked_albums : "likes"
+albums ||--o{ user_liked_albums : "liked by"
+
+' Listening history
+users ||--o{ listening_history : "has"
+songs ||--o{ listening_history : "played in"
+
+' Podcast relationships
+podcasts ||--o{ podcast_episodes : "contains"
+users ||--o{ user_saved_podcasts : "saves"
+podcasts ||--o{ user_saved_podcasts : "saved by"
+users ||--o{ podcast_listening_history : "has"
+podcast_episodes ||--o{ podcast_listening_history : "played in"
+
+@enduml

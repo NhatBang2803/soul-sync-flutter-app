@@ -297,7 +297,7 @@ class _MiniPlayerDynamicState extends State<MiniPlayerDynamic>
                         child: _buildCoverImage(coverUrl),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     // Song info
                     Expanded(
                       child: Column(

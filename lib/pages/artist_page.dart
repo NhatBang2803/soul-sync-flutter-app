@@ -31,6 +31,7 @@ class _ArtistPageState extends State<ArtistPage> {
   List<Song> _featuringSongs = [];
   bool _isLoading = true;
   bool _isFollowing = false;
+  bool _isBioExpanded = false;
   String? _error;
 
   @override
@@ -184,7 +185,7 @@ class _ArtistPageState extends State<ArtistPage> {
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 300,
+      expandedHeight: 420, // Increased by 40% from 300
       pinned: true,
       backgroundColor: AppColors.background,
       leading: IconButton(
@@ -322,15 +323,38 @@ class _ArtistPageState extends State<ArtistPage> {
           if (_artist!.bio != null && _artist!.bio!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                _artist!.bio!,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _artist!.bio!,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                    maxLines: _isBioExpanded ? null : 3,
+                    overflow: _isBioExpanded ? null : TextOverflow.ellipsis,
+                  ),
+                  if (_artist!.bio!.length >
+                      150) // Only show button if bio is long
+                    GestureDetector(
+                      onTap: () {
+                        setState(() => _isBioExpanded = !_isBioExpanded);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          _isBioExpanded ? 'Thu gọn' : 'Xem thêm',
+                          style: TextStyle(
+                            color: AppColors.textSecondary.withOpacity(0.7),
+                            fontSize: 14,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
         ],
