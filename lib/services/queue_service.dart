@@ -240,40 +240,191 @@ class QueueService {
   }
 
   /// Move to next song (manual skip)
-  Song? moveToNext() {
+  /// Returns the next song to play, or null if at end without auto-fetch
+  Future<Song?> moveToNext() async {
     if (_queue.isEmpty) return null;
 
-    if (_repeatMode == RepeatMode.one) {
-      // Even in repeat one, manual skip should move to next
-      _currentIndex = (_currentIndex + 1) % _queue.length;
-    } else if (_isShuffleEnabled) {
-      // Pick random different song
-      if (_queue.length > 1) {
-        int newIndex;
-        do {
-          newIndex = _random.nextInt(_queue.length);
-        } while (newIndex == _currentIndex);
-        _currentIndex = newIndex;
+    final isAtEnd = _currentIndex >= _queue.length - 1;
+    // final isInMiddle = !isAtStart && !isAtEnd; // Not needed, handled by else
+
+    // ========== CASE 1: No Shuffle + No Repeat ==========
+    if (!_isShuffleEnabled && _repeatMode == RepeatMode.off) {
+      if (isAtEnd) {
+        // At end: replay current song
+        _notifyChange();
+        return currentSong;
+      } else {
+        // At start or middle: move to next
+        _currentIndex++;
+        _markCurrentAsPlayed();
+        _notifyChange();
+        return currentSong;
       }
-    } else {
-      _currentIndex = (_currentIndex + 1) % _queue.length;
     }
 
-    _markCurrentAsPlayed();
+    // ========== CASE 2: Shuffle + No Repeat ==========
+    if (_isShuffleEnabled && _repeatMode == RepeatMode.off) {
+      if (isAtEnd) {
+        // At end: fetch 10 random songs, replace queue, play first
+        await _fetchAndReplaceWithRandomSongs(count: 10);
+        if (_queue.isNotEmpty) {
+          _currentIndex = 0;
+          _markCurrentAsPlayed();
+          _notifyChange();
+          return currentSong;
+        }
+        return null;
+      } else {
+        // At start or middle: move to next in queue
+        _currentIndex++;
+        _markCurrentAsPlayed();
+        _notifyChange();
+        return currentSong;
+      }
+    }
+
+    // ========== CASE 3 & 4: Any Shuffle + Repeat Queue ==========
+    if (_repeatMode == RepeatMode.queue) {
+      if (isAtEnd) {
+        // At end: wrap to first song
+        _currentIndex = 0;
+      } else {
+        // At start or middle: move to next
+        _currentIndex++;
+      }
+      _markCurrentAsPlayed();
+      _notifyChange();
+      return currentSong;
+    }
+
+    // ========== CASE 5: No Shuffle + Repeat One ==========
+    if (!_isShuffleEnabled && _repeatMode == RepeatMode.one) {
+      if (isAtEnd) {
+        // At end: wrap to first song
+        _currentIndex = 0;
+      } else {
+        // At start or middle: move to next
+        _currentIndex++;
+      }
+      _markCurrentAsPlayed();
+      _notifyChange();
+      return currentSong;
+    }
+
+    // ========== CASE 6: Shuffle + Repeat One ==========
+    if (_isShuffleEnabled && _repeatMode == RepeatMode.one) {
+      if (isAtEnd) {
+        // At end: fetch 10 random songs, replace queue, play first
+        await _fetchAndReplaceWithRandomSongs(count: 10);
+        if (_queue.isNotEmpty) {
+          _currentIndex = 0;
+          _markCurrentAsPlayed();
+          _notifyChange();
+          return currentSong;
+        }
+        return null;
+      } else {
+        // At start or middle: move to next in queue
+        _currentIndex++;
+        _markCurrentAsPlayed();
+        _notifyChange();
+        return currentSong;
+      }
+    }
+
+    // Default fallback
     _notifyChange();
     return currentSong;
   }
 
-  /// Move to previous song
-  Song? moveToPrevious() {
+  /// Move to previous song (manual skip)
+  /// Returns the previous song to play
+  Future<Song?> moveToPrevious() async {
     if (_queue.isEmpty) return null;
 
-    if (_currentIndex > 0) {
-      _currentIndex--;
-    } else {
-      _currentIndex = _queue.length - 1;
+    final isAtStart = _currentIndex == 0;
+
+    // ========== CASE 1: No Shuffle + No Repeat ==========
+    if (!_isShuffleEnabled && _repeatMode == RepeatMode.off) {
+      if (isAtStart) {
+        // At start: replay current song
+        _notifyChange();
+        return currentSong;
+      } else {
+        // At end or middle: move to previous
+        _currentIndex--;
+        _notifyChange();
+        return currentSong;
+      }
     }
 
+    // ========== CASE 2: Shuffle + No Repeat ==========
+    if (_isShuffleEnabled && _repeatMode == RepeatMode.off) {
+      if (isAtStart) {
+        // At start: fetch 10 random songs, replace queue, play first
+        await _fetchAndReplaceWithRandomSongs(count: 10);
+        if (_queue.isNotEmpty) {
+          _currentIndex = 0;
+          _markCurrentAsPlayed();
+          _notifyChange();
+          return currentSong;
+        }
+        return null;
+      } else {
+        // At end or middle: move to previous in queue
+        _currentIndex--;
+        _notifyChange();
+        return currentSong;
+      }
+    }
+
+    // ========== CASE 3 & 4: Any Shuffle + Repeat Queue ==========
+    if (_repeatMode == RepeatMode.queue) {
+      if (isAtStart) {
+        // At start: wrap to last song
+        _currentIndex = _queue.length - 1;
+      } else {
+        // At end or middle: move to previous
+        _currentIndex--;
+      }
+      _notifyChange();
+      return currentSong;
+    }
+
+    // ========== CASE 5: No Shuffle + Repeat One ==========
+    if (!_isShuffleEnabled && _repeatMode == RepeatMode.one) {
+      if (isAtStart) {
+        // At start: wrap to last song
+        _currentIndex = _queue.length - 1;
+      } else {
+        // At end or middle: move to previous
+        _currentIndex--;
+      }
+      _notifyChange();
+      return currentSong;
+    }
+
+    // ========== CASE 6: Shuffle + Repeat One ==========
+    if (_isShuffleEnabled && _repeatMode == RepeatMode.one) {
+      if (isAtStart) {
+        // At start: fetch 10 random songs, replace queue, play first
+        await _fetchAndReplaceWithRandomSongs(count: 10);
+        if (_queue.isNotEmpty) {
+          _currentIndex = 0;
+          _markCurrentAsPlayed();
+          _notifyChange();
+          return currentSong;
+        }
+        return null;
+      } else {
+        // At end or middle: move to previous in queue
+        _currentIndex--;
+        _notifyChange();
+        return currentSong;
+      }
+    }
+
+    // Default fallback
     _notifyChange();
     return currentSong;
   }
@@ -379,9 +530,9 @@ class QueueService {
   }
 
   /// Fetch random songs from database and REPLACE the queue
-  Future<void> _fetchAndReplaceWithRandomSongs() async {
+  Future<void> _fetchAndReplaceWithRandomSongs({int count = 10}) async {
     try {
-      final randomSongs = await _supabaseService.getRandomSongs(5);
+      final randomSongs = await _supabaseService.getRandomSongs(count);
       final newSongs = randomSongs.map((json) => Song.fromJson(json)).toList();
 
       if (newSongs.isNotEmpty) {

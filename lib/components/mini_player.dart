@@ -189,6 +189,8 @@ class MiniPlayerDynamic extends StatefulWidget {
   final bool isPlaying;
   final VoidCallback onPlayPause;
   final VoidCallback onExpand;
+  final VoidCallback? onNext;
+  final VoidCallback? onPrevious;
 
   const MiniPlayerDynamic({
     super.key,
@@ -196,6 +198,8 @@ class MiniPlayerDynamic extends StatefulWidget {
     required this.isPlaying,
     required this.onPlayPause,
     required this.onExpand,
+    this.onNext,
+    this.onPrevious,
   });
 
   @override
@@ -325,30 +329,66 @@ class _MiniPlayerDynamicState extends State<MiniPlayerDynamic>
                         ],
                       ),
                     ),
-                    // Play/Pause button with green circle
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF23DD5B),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF23DD5B).withOpacity(0.3),
-                            blurRadius: 8,
-                            spreadRadius: 1,
+                    // Control buttons: Previous, Play/Pause, Next
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Previous button
+                        if (widget.onPrevious != null)
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            icon: const Icon(
+                              Icons.skip_previous_rounded,
+                              color: Colors.white70,
+                              size: 24,
+                            ),
+                            onPressed: widget.onPrevious,
                           ),
-                        ],
-                      ),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          widget.isPlaying ? Icons.pause : Icons.play_arrow,
-                          color: Colors.black,
-                          size: 24,
+                        // Play/Pause button with green circle
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF23DD5B),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF23DD5B).withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(
+                              widget.isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: Colors.black,
+                              size: 24,
+                            ),
+                            onPressed: widget.onPlayPause,
+                          ),
                         ),
-                        onPressed: widget.onPlayPause,
-                      ),
+                        // Next button
+                        if (widget.onNext != null)
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            icon: const Icon(
+                              Icons.skip_next_rounded,
+                              color: Colors.white70,
+                              size: 24,
+                            ),
+                            onPressed: widget.onNext,
+                          ),
+                      ],
                     ),
                   ],
                 ),

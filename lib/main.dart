@@ -235,6 +235,8 @@ class _MainScreenState extends State<MainScreen> {
               isPlaying: _isPlaying,
               onPlayPause: _togglePlayPause,
               onExpand: _expandPlayer,
+              onNext: () async => await _audioService.next(),
+              onPrevious: () async => await _audioService.previous(),
             ),
           ),
 

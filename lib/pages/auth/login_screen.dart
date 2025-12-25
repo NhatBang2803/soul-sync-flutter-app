@@ -234,11 +234,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Âm nhạc kết nối cái lồn',
+                    'Nền tảng âm nhạc hàng đầu Đông Nam Á',
                     style: TextStyle(
                       color: Colors.grey[400],
                       fontSize: 16,
-                      fontStyle: FontStyle.italic,
+                      fontStyle: FontStyle.normal,
                     ),
                   ),
                   const SizedBox(height: 40),

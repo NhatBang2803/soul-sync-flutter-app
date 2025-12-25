@@ -215,7 +215,11 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() => _isUploadingAvatar = true);
 
       final file = File(pickedFile.path);
-      final avatarUrl = await _authService.uploadAvatar(file);
+      // Pass mimeType for correct extension detection (file path may not have extension on Linux)
+      final avatarUrl = await _authService.uploadAvatar(
+        file,
+        mimeType: pickedFile.mimeType,
+      );
 
       if (avatarUrl != null) {
         final result = await _authService.updateProfile(avatarUrl: avatarUrl);

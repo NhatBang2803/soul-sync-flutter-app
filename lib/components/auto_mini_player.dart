@@ -73,6 +73,14 @@ class _AutoMiniPlayerState extends State<AutoMiniPlayer> {
     );
   }
 
+  void _playNext() async {
+    await _audioService.next();
+  }
+
+  void _playPrevious() async {
+    await _audioService.previous();
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentSong =
@@ -91,6 +99,8 @@ class _AutoMiniPlayerState extends State<AutoMiniPlayer> {
         isPlaying: _isPlaying,
         onPlayPause: _togglePlayPause,
         onExpand: _expandPlayer,
+        onNext: _playNext,
+        onPrevious: _playPrevious,
       ),
     );
   }

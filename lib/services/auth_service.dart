@@ -427,18 +427,31 @@ class AuthService {
 
   /// Upload avatar image to Cloudinary
   /// Returns the public URL of the uploaded image
-  Future<String?> uploadAvatar(File imageFile) async {
+  /// [mimeType] should be passed from XFile.mimeType for correct format detection
+  Future<String?> uploadAvatar(File imageFile, {String? mimeType}) async {
     try {
       final userId = currentUserId;
       if (userId == null) {
         throw Exception('Chưa đăng nhập');
       }
 
-      // Get file extension
-      final ext = imageFile.path.split('.').last.toLowerCase();
+      // Determine extension from MIME type first, then fall back to file path
+      String ext;
+      if (mimeType != null && mimeType.isNotEmpty) {
+        // Extract extension from MIME type: 'image/jpeg' -> 'jpeg'
+        ext = mimeType.split('/').last.toLowerCase();
+        // Map 'jpeg' to 'jpg' for consistency
+        if (ext == 'jpeg') ext = 'jpg';
+      } else {
+        // Fall back to file path extension
+        ext = imageFile.path.split('.').last.toLowerCase();
+      }
+
       final allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
       if (!allowedExts.contains(ext)) {
-        throw Exception('Chỉ hỗ trợ định dạng: ${allowedExts.join(', ')}');
+        // If extension is invalid, default to 'jpg' and let Cloudinary auto-detect
+        print('Warning: Unknown extension "$ext", defaulting to jpg');
+        ext = 'jpg';
       }
 
       // Create unique filename: userId_timestamp.ext

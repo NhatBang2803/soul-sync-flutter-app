@@ -35,7 +35,6 @@ class AudioPlayerService {
   Stream<Duration?> get durationStream => _audioPlayer.durationStream;
   Stream<bool> get playingStream => _audioPlayer.playingStream;
 
-
   // Current state - delegate to QueueService
   bool get isPlaying => _audioPlayer.playing;
   Duration get position => _audioPlayer.position;
@@ -193,7 +192,7 @@ class AudioPlayerService {
 
   /// Play next song - delegate to QueueService
   Future<void> next() async {
-    final nextSong = _queueService.moveToNext();
+    final nextSong = await _queueService.moveToNext();
     if (nextSong != null) {
       await _loadAndPlay(nextSong.toPlayerFormat());
     }
@@ -207,7 +206,7 @@ class AudioPlayerService {
       return;
     }
 
-    final prevSong = _queueService.moveToPrevious();
+    final prevSong = await _queueService.moveToPrevious();
     if (prevSong != null) {
       await _loadAndPlay(prevSong.toPlayerFormat());
     }

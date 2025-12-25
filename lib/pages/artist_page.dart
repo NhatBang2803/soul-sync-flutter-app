@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../core/core.dart';
 import '../now_playing_page.dart';
 import '../components/add_to_playlist_dialog.dart';
+import '../components/auto_mini_player.dart';
 import 'album_page.dart';
 
 class ArtistPage extends StatefulWidget {
@@ -160,17 +161,22 @@ class _ArtistPageState extends State<ArtistPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(),
-          SliverToBoxAdapter(child: _buildArtistInfo()),
-          if (_topSongs.isNotEmpty)
-            SliverToBoxAdapter(child: _buildTopSongsSection()),
-          if (_albums.isNotEmpty)
-            SliverToBoxAdapter(child: _buildAlbumsSection()),
-          if (_featuringSongs.isNotEmpty)
-            SliverToBoxAdapter(child: _buildFeaturingSection()),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(child: _buildArtistInfo()),
+              if (_topSongs.isNotEmpty)
+                SliverToBoxAdapter(child: _buildTopSongsSection()),
+              if (_albums.isNotEmpty)
+                SliverToBoxAdapter(child: _buildAlbumsSection()),
+              if (_featuringSongs.isNotEmpty)
+                SliverToBoxAdapter(child: _buildFeaturingSection()),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
+          const AutoMiniPlayer(),
         ],
       ),
     );
