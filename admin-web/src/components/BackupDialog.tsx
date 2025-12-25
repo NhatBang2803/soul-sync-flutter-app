@@ -26,6 +26,10 @@ const TABLES = [
     { name: 'songs', label: 'Bài hát' },
     { name: 'playlists', label: 'Playlist' },
 
+    // Podcast entities
+    { name: 'podcasts', label: 'Podcast' },
+    { name: 'podcast_episodes', label: 'Tập Podcast' },
+
     // Junction tables (many-to-many relationships)
     { name: 'song_artists', label: 'Song ↔ Artist' },
     { name: 'album_artists', label: 'Album ↔ Artist' },
@@ -37,7 +41,11 @@ const TABLES = [
     { name: 'user_liked_songs', label: 'Bài hát yêu thích' },
     { name: 'user_liked_albums', label: 'Album yêu thích' },
     { name: 'user_follows', label: 'Theo dõi nghệ sĩ' },
-    { name: 'listening_history', label: 'Lịch sử nghe' },
+    { name: 'listening_history', label: 'Lịch sử nghe nhạc' },
+
+    // Podcast user interactions
+    { name: 'user_saved_podcasts', label: 'Podcast đã lưu' },
+    { name: 'podcast_listening_history', label: 'Lịch sử nghe podcast' },
 ]
 
 function formatSQLValue(value: unknown): string {

@@ -293,31 +293,41 @@ class _HomePageState extends State<HomePage> {
       child: Row(
         children: [
           // Profile Avatar with gradient border
-          Container(
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: AppColors.primaryGradient,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            padding: const EdgeInsets.all(2),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.background,
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.surface,
-                backgroundImage: const AssetImage('assets/images/ellipse1.png'),
-                onBackgroundImageError: (exception, stackTrace) {},
-                child: const Icon(
-                  Icons.person,
-                  size: 16,
-                  color: AppColors.textPrimary,
+          StreamBuilder<dynamic>(
+            stream: _authService.userStream,
+            builder: (context, snapshot) {
+              final user = _authService.currentUser;
+              final avatarUrl = user?.avatarUrl;
+              return Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: AppColors.primaryGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-              ),
-            ),
+                padding: const EdgeInsets.all(2),
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.background,
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: AppColors.surface,
+                    backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                        ? NetworkImage(avatarUrl)
+                        : null,
+                    child: avatarUrl == null || avatarUrl.isEmpty
+                        ? const Icon(
+                            Icons.person,
+                            size: 18,
+                            color: AppColors.textPrimary,
+                          )
+                        : null,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 12),
           // Greeting text

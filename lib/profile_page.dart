@@ -5,6 +5,9 @@ import 'components/bottom_nav_bar.dart';
 import 'components/add_to_playlist_dialog.dart';
 import 'services/supabase_service.dart';
 import 'services/auth_service.dart';
+import 'services/audio_player_service.dart';
+import 'services/queue_service.dart';
+import 'now_playing_page.dart';
 import 'models/models.dart';
 import 'models/user.dart' as app_user;
 import 'core/core.dart';
@@ -25,6 +28,8 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final SupabaseService _supabaseService = SupabaseService();
   final AuthService _authService = AuthService();
+  final AudioPlayerService _audioService = AudioPlayerService();
+  final QueueService _queueService = QueueService();
   final ImagePicker _imagePicker = ImagePicker();
 
   app_user.User? _userProfile;
@@ -647,8 +652,23 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
-      onTap: () {
-        // Play song
+      onTap: () async {
+        // Play song and add to queue
+        final index = _recentlyPlayed.indexOf(song);
+        final playlist = _recentlyPlayed.take(3).toList();
+        _queueService.replaceQueue(
+          playlist,
+          startIndex: index >= 0 ? index : 0,
+        );
+        final playerPlaylist = playlist.map((s) => s.toPlayerFormat()).toList();
+        await _audioService.setPlaylist(playerPlaylist, index >= 0 ? index : 0);
+
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NowPlayingPage()),
+          );
+        }
       },
     );
   }
