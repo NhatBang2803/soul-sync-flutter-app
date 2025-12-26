@@ -175,58 +175,34 @@ class QueueService {
 
     final isLastSong = _currentIndex >= _queue.length - 1;
 
-    if (!_isShuffleEnabled) {
-      // ========== NO SHUFFLE ==========
-      if (!isLastSong) {
-        // Not last song: move to next
-        _currentIndex++;
-        _markCurrentAsPlayed();
-        _notifyChange();
-        return currentSong;
-      }
+    // Logic for both Normal and Shuffle (since Shuffle physically shuffles the list)
+    if (!isLastSong) {
+      // Just move to the next song in the (potentially shuffled) queue
+      _currentIndex++;
+      _markCurrentAsPlayed();
+      _notifyChange();
+      return currentSong;
+    }
 
-      // Last song
-      if (_repeatMode == RepeatMode.queue) {
-        // Loop back to first song
-        _currentIndex = 0;
-        _markCurrentAsPlayed();
-        _notifyChange();
-        return currentSong;
-      } else {
-        // RepeatMode.off: Stop playback
-        return null;
-      }
-    } else {
-      // ========== SHUFFLE ENABLED ==========
-      // Check if all songs have been played
-      final allPlayed = _queue.every((s) => _playedIds.contains(s.id));
+    // ========== END OF QUEUE ==========
 
-      if (!allPlayed) {
-        // Pick random unplayed song
-        final unplayedIndices = <int>[];
-        for (int i = 0; i < _queue.length; i++) {
-          if (!_playedIds.contains(_queue[i].id)) {
-            unplayedIndices.add(i);
-          }
-        }
-        _currentIndex =
-            unplayedIndices[_random.nextInt(unplayedIndices.length)];
-        _markCurrentAsPlayed();
-        _notifyChange();
-        return currentSong;
-      }
-
-      // All songs played
-      if (_repeatMode == RepeatMode.queue) {
-        // Reshuffle and start over
+    if (_repeatMode == RepeatMode.queue) {
+      if (_isShuffleEnabled) {
+        // Shuffle enabled: Reshuffle and start over
         _playedIds.clear();
         _shuffleQueue(keepCurrent: false);
         _currentIndex = 0;
-        _markCurrentAsPlayed();
-        _notifyChange();
-        return currentSong;
       } else {
-        // RepeatMode.off with shuffle: fetch random songs from DB
+        // Normal: Loop back to first song
+        _currentIndex = 0;
+      }
+      _markCurrentAsPlayed();
+      _notifyChange();
+      return currentSong;
+    } else {
+      // RepeatMode.off
+      if (_isShuffleEnabled) {
+        // Shuffle enabled + Repeat Off: fetch random songs from DB to continue playback
         await _fetchAndReplaceWithRandomSongs();
         if (_queue.isNotEmpty) {
           _currentIndex = 0;
@@ -234,6 +210,9 @@ class QueueService {
           _notifyChange();
           return currentSong;
         }
+        return null;
+      } else {
+        // Normal + Repeat Off: Stop playback
         return null;
       }
     }

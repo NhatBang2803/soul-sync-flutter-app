@@ -101,16 +101,32 @@ class SupabaseService {
   Future<List<Map<String, dynamic>>> getWeeklySongRankingByGenre(
     String genreName,
   ) async {
-    final response = await client
-        .from('weekly_song_rankings')
-        .select()
-        .eq('genre_name', genreName)
-        .order('rank')
-        .limit(10);
+    // Use RPC to bypass RLS and get global rankings
+    final response = await client.rpc(
+      'get_weekly_song_rankings',
+      params: {'genre_filter': genreName},
+    );
+
+    // Cast response list clearly
+    final List<dynamic> dataList = response as List<dynamic>;
+    final List<Map<String, dynamic>> result = dataList
+        .map((e) => e as Map<String, dynamic>)
+        .toList();
+
+    // DEBUG: Log raw response from RPC
+    print('======= RAW RESPONSE FROM get_weekly_song_rankings RPC =======');
+    print('Genre: $genreName');
+    print('Response count: ${result.length}');
+    for (var i = 0; i < result.length && i < 10; i++) {
+      print(
+        '  [$i] rank=${result[i]['rank']}, title=${result[i]['title']}, weekly_plays=${result[i]['weekly_plays']}',
+      );
+    }
+    print('==============================================================');
 
     // Enrich với artist info từ songs_with_artists
     final enriched = <Map<String, dynamic>>[];
-    for (final song in response) {
+    for (final song in result) {
       try {
         final songWithArtist = await client
             .from('songs_with_artists')
@@ -626,7 +642,8 @@ class SupabaseService {
   /// Lấy lịch sử nghe đầy đủ (với thông tin bài hát)
   Future<List<Map<String, dynamic>>> getListeningHistory(
     String userId, {
-    int limit = 200,
+    int limit = 20,
+    int offset = 0,
   }) async {
     final response = await client
         .from('listening_history')
@@ -649,7 +666,7 @@ class SupabaseService {
         ''')
         .eq('user_id', userId)
         .order('listened_at', ascending: false)
-        .limit(limit);
+        .range(offset, offset + limit - 1);
 
     return response.map<Map<String, dynamic>>((item) {
       final song = item['songs_with_artists'] as Map<String, dynamic>;

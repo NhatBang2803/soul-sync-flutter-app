@@ -23,61 +23,128 @@ class _HistoryPageState extends State<HistoryPage> {
   final QueueService _queueService = QueueService();
   final AuthService _authService = AuthService();
 
+  final ScrollController _scrollController = ScrollController();
   Map<String, List<HistoryItem>> _historyByDate = {};
+
+  // Pagination state
+  static const int _pageSize = 20;
+  int _currentOffset = 0;
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadHistory();
   }
 
-  Future<void> _loadHistory() async {
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreHistory();
+    }
+  }
+
+  Future<void> _loadHistory({bool refresh = false}) async {
+    if (refresh) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+        _currentOffset = 0;
+        _historyByDate = {};
+        _hasMore = true;
+      });
+    } else {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
+
+    await _fetchData();
+  }
+
+  Future<void> _loadMoreHistory() async {
+    if (_isLoading || _isLoadingMore || !_hasMore) return;
+
     setState(() {
-      _isLoading = true;
-      _error = null;
+      _isLoadingMore = true;
     });
 
+    await _fetchData();
+  }
+
+  Future<void> _fetchData() async {
     try {
       final userId = _authService.currentUserId;
       if (userId == null) {
         setState(() {
           _error = 'Vui lòng đăng nhập để xem lịch sử';
           _isLoading = false;
+          _isLoadingMore = false;
         });
         return;
       }
 
       final history = await _supabaseService.getListeningHistory(
         userId,
-        limit: 200,
+        limit: _pageSize,
+        offset: _currentOffset,
       );
 
+      if (history.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _hasMore = false;
+            _isLoading = false;
+            _isLoadingMore = false;
+          });
+        }
+        return;
+      }
+
       // Group by date
-      final Map<String, List<HistoryItem>> grouped = {};
+      // We need to merge with existing data
+      final Map<String, List<HistoryItem>> currentGrouped = Map.from(
+        _historyByDate,
+      );
 
       for (final item in history) {
         final historyItem = HistoryItem.fromJson(item);
         final dateKey = _formatDateKey(historyItem.listenedAt);
 
-        if (!grouped.containsKey(dateKey)) {
-          grouped[dateKey] = [];
+        if (!currentGrouped.containsKey(dateKey)) {
+          currentGrouped[dateKey] = [];
         }
 
-        // Avoid duplicates within same day
-        final exists = grouped[dateKey]!.any(
-          (h) => h.song.id == historyItem.song.id,
+        // Check for duplicates (should rarely happen with distinct pagination unless data changes)
+        final exists = currentGrouped[dateKey]!.any(
+          (h) =>
+              h.song.id == historyItem.song.id &&
+              h.listenedAt.difference(historyItem.listenedAt).abs().inSeconds <
+                  2,
         );
         if (!exists) {
-          grouped[dateKey]!.add(historyItem);
+          currentGrouped[dateKey]!.add(historyItem);
         }
       }
 
       if (mounted) {
         setState(() {
-          _historyByDate = grouped;
+          _historyByDate = currentGrouped;
+          _currentOffset += history.length;
+          _hasMore = history.length >= _pageSize;
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
     } catch (e) {
@@ -85,6 +152,7 @@ class _HistoryPageState extends State<HistoryPage> {
         setState(() {
           _error = e.toString();
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
     }
@@ -140,7 +208,7 @@ class _HistoryPageState extends State<HistoryPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadHistory,
+            onPressed: () => _loadHistory(refresh: true),
           ),
         ],
       ),
@@ -197,11 +265,24 @@ class _HistoryPageState extends State<HistoryPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: _loadHistory,
+      onRefresh: () => _loadHistory(refresh: true),
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.only(bottom: 100),
-        itemCount: _historyByDate.length,
+        itemCount: _historyByDate.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index == _historyByDate.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
           final dateKey = _historyByDate.keys.elementAt(index);
           final items = _historyByDate[dateKey]!;
           return _buildDateSection(dateKey, items);

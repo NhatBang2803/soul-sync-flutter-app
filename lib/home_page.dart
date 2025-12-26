@@ -164,6 +164,13 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         final genres = genresData.map((json) => Genre.fromJson(json)).toList();
 
+        // DEBUG: Print loaded genres
+        print('======= LOADED GENRES =======');
+        for (final g in genres) {
+          print('Genre: ${g.name} (${g.displayName})');
+        }
+        print('Taking first 4 genres for rankings...');
+
         // Load song rankings for each genre
         final rankingsMap = <String, List<Song>>{};
         for (final genre in genres.take(4)) {
@@ -175,6 +182,7 @@ class _HomePageState extends State<HomePage> {
                 .map((json) => Song.fromJson(json))
                 .toList();
           } catch (e) {
+            print('Error loading ranking for ${genre.name}: $e');
             rankingsMap[genre.name] = [];
           }
         }
